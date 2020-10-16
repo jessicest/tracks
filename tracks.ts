@@ -1,58 +1,46 @@
 
-use std::collections::HashMap;
-use std::cmp::max;
-
 function main() {
     console.log("Hello, world!");
 }
 
-#[derive(Eq,PartialEq,Hash,Copy,Clone)]
 enum Direction {
     East,
     South,
 }
-use Direction::*;
 
-#[derive(PartialEq,Eq,PartialOrd,Ord,Hash,Copy,Clone)]
-struct Pos {
-    x: usize,
-    y: usize,
+class Pos {
+    x: bigint;
+    y: bigint;
 }
 
-type HintId = (usize, Direction);
+type HintId = [bigint, Direction];
 type CellId = Pos;
-type LinkId = (Pos, Direction);
+type LinkId = [Pos, Direction];
 
-#[derive(Clone,Copy,PartialEq,Eq,Hash,Debug)]
 enum State {
     Live,
     Unknown,
     Dead,
 }
-use State::*;
 
-struct Hint {
+class Hint {
     id: HintId,
-    value: usize,
-    cells: Vec<CellId>,
-    links: Vec<LinkId>,
-}
+    value: bigint,
+    cells: Array<CellId>,
+    links: Array<LinkId>,
 
-impl Hint {
-    fn new(id: HintId, value: usize) -> Self {
-        Hint {
-            id,
-            value,
-            cells: Vec::new(),
-            links: Vec::new(),
-        }
+    constructor(id: HintId, value: bigint) {
+        this.id = id;
+        this.value = value;
+        this.cells = new Array();
+        this.links = new Array();
     }
 }
 
-struct Cell {
+class Cell {
     id: CellId,
-    hints: Vec<HintId>,
-    links: Vec<LinkId>,
+    hints: Array<HintId>,
+    links: Array<LinkId>,
     state: State,
 }
 
@@ -60,8 +48,8 @@ impl Cell {
     fn new(id: CellId) -> Self {
         Cell {
             id,
-            hints: Vec::new(),
-            links: Vec::new(),
+            hints: Array::new(),
+            links: Array::new(),
             state: Unknown,
         }
     }
@@ -71,7 +59,7 @@ struct Link {
     id: LinkId,
     chain_id: LinkId,
     hint_id: Option<HintId>,
-    cells: Vec<CellId>,
+    cells: Array<CellId>,
     state: State,
 }
 
@@ -81,7 +69,7 @@ impl Link {
             id,
             chain_id: id,
             hint_id: None,
-            cells: Vec::new(),
+            cells: Array::new(),
             state: Unknown,
         }
     }
@@ -95,9 +83,9 @@ enum Action {
 use Action::*;
 
 struct Grid {
-    dirty_cells: Vec<CellId>,
-    dirty_links: Vec<LinkId>,
-    dirty_hints: Vec<HintId>,
+    dirty_cells: Array<CellId>,
+    dirty_links: Array<LinkId>,
+    dirty_hints: Array<HintId>,
     cells: HashMap<CellId, Cell>,
     hints: HashMap<HintId, Hint>,
     links: HashMap<LinkId, Link>,
@@ -189,7 +177,7 @@ fn propagate_chain_id(grid: &mut Grid, link_id: LinkId, chain_id: LinkId) {
     }
 }
 
-fn process_hint(grid: &Grid, hint: &Hint) -> Vec<Action> {
+fn process_hint(grid: &Grid, hint: &Hint) -> Array<Action> {
     let (live_cells, unknown_cells, dead_cells) = get_cells(&grid.cells, &hint.cells);
 
     if unknown_cells.len() > 0 {
@@ -212,7 +200,7 @@ fn process_hint(grid: &Grid, hint: &Hint) -> Vec<Action> {
     vec![]
 }
 
-fn process_link(grid: &Grid, link: &Link) -> Vec<Action> {
+fn process_link(grid: &Grid, link: &Link) -> Array<Action> {
     let (live_cells, _, _) = get_cells(&grid.cells, &link.cells);
     let neighbor_link_ids = live_cells.into_iter().flat_map(|cell| cell.links.clone()).collect();
     let (live_neighbor_links, _, _) = get_links(&grid.links, &neighbor_link_ids);
@@ -224,7 +212,7 @@ fn process_link(grid: &Grid, link: &Link) -> Vec<Action> {
     vec![]
 }
 
-fn process_cell(grid: &Grid, cell: &Cell) -> Vec<Action> {
+fn process_cell(grid: &Grid, cell: &Cell) -> Array<Action> {
     let (live_links, unknown_links, dead_links) = get_links(&grid.links, &cell.links);
 
     if live_links.len() == 1 && cell.state == Dead {
@@ -258,12 +246,12 @@ struct GridBuilder {
     cells: HashMap<CellId, Cell>,
     links: HashMap<LinkId, Link>,
     hints: HashMap<HintId, Hint>,
-    xmax: usize,
-    ymax: usize,
+    xmax: bigint,
+    ymax: bigint,
 }
 
 impl GridBuilder {
-    fn new(xmax: usize, ymax: usize) -> Self {
+    fn new(xmax: bigint, ymax: bigint) -> Self {
         GridBuilder {
             cells: HashMap::new(),
             links: HashMap::new(),
@@ -307,7 +295,7 @@ impl GridBuilder {
         }
     }
 
-    fn add_hint(&mut self, hint_id: HintId, value: usize) {
+    fn add_hint(&mut self, hint_id: HintId, value: bigint) {
         self.hints.insert(hint_id, Hint::new(hint_id, value));
 
         let (index, direction) = hint_id;
@@ -371,7 +359,7 @@ impl GridBuilder {
 }
 
 impl Grid {
-    fn new(cx: usize, cy: usize, live_links: Vec<(Pos, Direction)>, hints: Vec<(usize, Direction)>) -> Self {
+    fn new(cx: bigint, cy: bigint, live_links: Array<(Pos, Direction)>, hints: Array<(bigint, Direction)>) -> Self {
         let zx = cx + 1;
         let zy = cy + 1;
 
@@ -426,7 +414,7 @@ impl Grid {
         }
     }
 
-    fn process(&mut self) -> Vec<Action> {
+    fn process(&mut self) -> Array<Action> {
         while let Some(cell_id) = self.dirty_cells.pop() {
             if let Some(cell) = self.cells.get(&cell_id) {
                 let result = process_cell(&self, cell);
@@ -458,8 +446,8 @@ impl Grid {
     }
 }
 
-fn get_cells<'a>(cells: &'a HashMap<CellId, Cell>, cell_ids: &Vec<CellId>) -> (Vec<&'a Cell>, Vec<&'a Cell>, Vec<&'a Cell>) {
-    let mut result = (Vec::new(), Vec::new(), Vec::new());
+fn get_cells<'a>(cells: &'a HashMap<CellId, Cell>, cell_ids: &Array<CellId>) -> (Array<&'a Cell>, Array<&'a Cell>, Array<&'a Cell>) {
+    let mut result = (Array::new(), Array::new(), Array::new());
 
     for cell_id in cell_ids {
         if let Some(cell) = cells.get(&cell_id) {
@@ -476,8 +464,8 @@ fn get_cells<'a>(cells: &'a HashMap<CellId, Cell>, cell_ids: &Vec<CellId>) -> (V
     result
 }
 
-fn get_links<'a>(links: &'a HashMap<LinkId, Link>, link_ids: &Vec<LinkId>) -> (Vec<&'a Link>, Vec<&'a Link>, Vec<&'a Link>) {
-    let mut result = (Vec::new(), Vec::new(), Vec::new());
+fn get_links<'a>(links: &'a HashMap<LinkId, Link>, link_ids: &Array<LinkId>) -> (Array<&'a Link>, Array<&'a Link>, Array<&'a Link>) {
+    let mut result = (Array::new(), Array::new(), Array::new());
 
     for link_id in link_ids {
         if let Some(link) = links.get(&link_id) {
