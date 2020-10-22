@@ -7,6 +7,11 @@ class Option<T> {
     value: T;
 }
 
+function* range( start, end, step = 1 ){
+  if( end === undefined ) [start, end] = [0, start];
+  for( let n = start; n <= end; n += step ) yield n;
+}
+
 enum Direction {
     East,
     South,
@@ -92,15 +97,6 @@ class Link {
     }
 }
 
-class Grid {
-    dirty_cells: Array<CellId>;
-    dirty_links: Array<LinkId>;
-    dirty_hints: Array<HintId>;
-    cells: HashMap<CellId, Cell>;
-    hints: HashMap<HintId, Hint>;
-    links: HashMap<LinkId, Link>;
-}
-
 interface Action {
     function execute(grid: Grid);
 }
@@ -159,6 +155,12 @@ class SetLinkState extends Action {
                 propagate_chain_id(grid, grid.cells.get(neighbor_id), chain_id);
             }
         }
+    }
+}
+
+class Fail extends Action {
+    function execute() {
+        throw new Error("failure executed!");
     }
 }
 
@@ -235,17 +237,17 @@ class GridBuilder {
     ymax: bigint;
 
     constructor(xmax: bigint, ymax: bigint) {
-        return GridBuilder {
-            cells: HashMap::new(),
-            links: HashMap::new(),
-            hints: HashMap::new(),
+        return {
+            cells: new HashMap(),
+            links: new HashMap(),
+            hints: new HashMap(),
             xmax,
             ymax,
         };
     }
 
     function add_cell(pos: Pos) {
-        this.cells.insert(pos, Cell::new(pos));
+        this.cells.insert(pos, new Cell(pos));
         this.xmax = max(this.xmax, pos.x);
         this.ymax = max(this.ymax, pos.y);
 
@@ -259,7 +261,7 @@ class GridBuilder {
     }
 
     function add_link(link_id: LinkId) {
-        this.links.insert(link_id, Link::new(link_id));
+        this.links.insert(link_id, new Link(link_id));
 
         const (pos, direction) = link_id;
         this.xmax = max(this.xmax, pos.x);
@@ -279,13 +281,13 @@ class GridBuilder {
     }
 
     function add_hint(hint_id: HintId, value: bigint) {
-        this.hints.insert(hint_id, Hint::new(hint_id, value));
+        this.hints.insert(hint_id, new Hint(hint_id, value));
 
         const (index, direction) = hint_id;
         match direction {
             East => {
                 const x = index;
-                for y in 0..(this.ymax + 1) {
+                for(const y in range(this.ymax + 1)) {
                     const pos = Pos { x, y };
                     this.try_connect_hint_with_cell(hint_id, pos);
                     this.try_connect_hint_with_link(hint_id, (pos, East));
@@ -293,7 +295,7 @@ class GridBuilder {
             },
             South => {
                 const y = index;
-                for x in 0..(this.xmax + 1) {
+                for(const x in range(this.xmax + 1)) {
                     const pos = Pos { x, y };
                     this.try_connect_hint_with_cell(hint_id, pos);
                     this.try_connect_hint_with_link(hint_id, (pos, South));
@@ -329,8 +331,8 @@ class GridBuilder {
         }
     }
 
-    function build(self) : Grid {
-        Grid {
+    function build() : Grid {
+        return {
             dirty_cells: this.cells.keys(),
             dirty_links: this.links.keys(),
             dirty_hints: this.hints.keys(),
@@ -341,24 +343,31 @@ class GridBuilder {
     }
 }
 
-impl Grid {
+class Grid {
+    dirty_cells: Array<CellId>;
+    dirty_links: Array<LinkId>;
+    dirty_hints: Array<HintId>;
+    cells: HashMap<CellId, Cell>;
+    hints: HashMap<HintId, Hint>;
+    links: HashMap<LinkId, Link>;
+
     constructor(cx: bigint, cy: bigint, live_links: Array<(Pos, Direction)>, hints: Array<(bigint, Direction)>) {
         const zx = cx + 1;
         const zy = cy + 1;
 
-        const builder = GridBuilder::new(cx, cy);
+        const builder = new GridBuilder(cx, cy);
 
         // add cells
-        for y in 1..zy {
-            for x in 1..zx {
+        for(const y in range(1, zy)) {
+            for(const x in range(1, zx)) {
                 const pos = Pos { x, y };
                 builder.add_cell(pos);
             }
         }
 
         // add links
-        for y in 0..zy {
-            for x in 0..zx {
+        for(const y in range(zy)) {
+            for(const x in range(zx)) {
                 const pos = Pos { x, y };
 
                 if(y > 0) {
@@ -372,32 +381,32 @@ impl Grid {
         }
 
         // add hints
-        for (index, hint) in hints.enumerate() {
+        for(const (index, hint) in hints.enumerate()) {
             builder.add_hint((index + 1, hint.1), hint.0);
         }
 
         // set some links Live as requested
-        for link_id in live_links {
+        for(const link_id in live_links) {
             builder.links.get_mut(link_id).unwrap().state = Live;
         }
 
         builder.build()
     }
 
-    function solve(self) {
+    function solve() {
         loop {
             const actions = this.process();
             if(actions.is_empty()) {
                 break;
             }
 
-            for action in actions {
-                action.execute(self);
+            for(const action in actions) {
+                action.execute();
             }
         }
     }
 
-    function process(self) : Array<Action> {
+    function process() : Array<Action> {
         while const Some(cell_id) = this.dirty_cells.pop() {
             if(const Some(cell) = this.cells.get(cell_id)) {
                 const result = process_cell(cell);
@@ -429,10 +438,10 @@ impl Grid {
     }
 }
 
-function get_cells(cells: HashMap<CellId, Cell>, cell_ids: Array<CellId>) : (Array<Cell>, Array<Cell>, Array<Cell>) {
+function get_cells(cells: HashMap<CellId, Cell>, cell_ids: Array<CellId>) : [Array<Cell>, Array<Cell>, Array<Cell>] {
     const result = (new Array(), new Array(), new Array());
 
-    for cell_id in cell_ids {
+    for(const cell_id in cell_ids) {
         if(const Some(cell) = cells.get(cell_id)) {
             const target = match cell.state {
                 Live => result.0,
@@ -444,13 +453,13 @@ function get_cells(cells: HashMap<CellId, Cell>, cell_ids: Array<CellId>) : (Arr
         }
     }
 
-    result
+    return result;
 }
 
-function get_links(links: HashMap<LinkId, Link>, link_ids: Array<LinkId>) : (Array<Link>, Array<Link>, Array<Link>) {
+function get_links(links: HashMap<LinkId, Link>, link_ids: Array<LinkId>) : [Array<Link>, Array<Link>, Array<Link>] {
     const result = (new Array(), new Array(), new Array());
 
-    for link_id in link_ids {
+    for(const link_id in link_ids) {
         if(const Some(link) = links.get(link_id)) {
             const target = match link.state {
                 Live => result.0,
@@ -462,7 +471,7 @@ function get_links(links: HashMap<LinkId, Link>, link_ids: Array<LinkId>) : (Arr
         }
     }
 
-    result
+    return result;
 }
 
 
@@ -495,7 +504,7 @@ function parse(input: str) : Grid {
     // sample:
     // 4x4:CkAc,S4,3,3,4,S3,4,3,4
 
-    panic!("idk how to read existing track segments")
+    throw new Error("idk how to read existing track segments");
 }
 
 /*

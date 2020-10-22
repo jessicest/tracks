@@ -11,6 +11,33 @@ var __extends = (this && this.__extends) || (function () {
         d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
     };
 })();
+var __generator = (this && this.__generator) || function (thisArg, body) {
+    var _ = { label: 0, sent: function() { if (t[0] & 1) throw t[1]; return t[1]; }, trys: [], ops: [] }, f, y, t, g;
+    return g = { next: verb(0), "throw": verb(1), "return": verb(2) }, typeof Symbol === "function" && (g[Symbol.iterator] = function() { return this; }), g;
+    function verb(n) { return function (v) { return step([n, v]); }; }
+    function step(op) {
+        if (f) throw new TypeError("Generator is already executing.");
+        while (_) try {
+            if (f = 1, y && (t = op[0] & 2 ? y["return"] : op[0] ? y["throw"] || ((t = y["return"]) && t.call(y), 0) : y.next) && !(t = t.call(y, op[1])).done) return t;
+            if (y = 0, t) op = [op[0] & 2, t.value];
+            switch (op[0]) {
+                case 0: case 1: t = op; break;
+                case 4: _.label++; return { value: op[1], done: false };
+                case 5: _.label++; y = op[1]; op = [0]; continue;
+                case 7: op = _.ops.pop(); _.trys.pop(); continue;
+                default:
+                    if (!(t = _.trys, t = t.length > 0 && t[t.length - 1]) && (op[0] === 6 || op[0] === 2)) { _ = 0; continue; }
+                    if (op[0] === 3 && (!t || (op[1] > t[0] && op[1] < t[3]))) { _.label = op[1]; break; }
+                    if (op[0] === 6 && _.label < t[1]) { _.label = t[1]; t = op; break; }
+                    if (t && _.label < t[2]) { _.label = t[2]; _.ops.push(op); break; }
+                    if (t[2]) _.ops.pop();
+                    _.trys.pop(); continue;
+            }
+            op = body.call(thisArg, _);
+        } catch (e) { op = [6, e]; y = 0; } finally { f = t = 0; }
+        if (op[0] & 5) throw op[1]; return { value: op[0] ? op[1] : void 0, done: true };
+    }
+};
 function main() {
     console.log("Hello, world!");
 }
@@ -19,6 +46,30 @@ var Option = /** @class */ (function () {
     }
     return Option;
 }());
+function range(start, end, step) {
+    var n;
+    var _a;
+    if (step === void 0) { step = 1; }
+    return __generator(this, function (_b) {
+        switch (_b.label) {
+            case 0:
+                if (end === undefined)
+                    _a = [0, start], start = _a[0], end = _a[1];
+                n = start;
+                _b.label = 1;
+            case 1:
+                if (!(n <= end)) return [3 /*break*/, 4];
+                return [4 /*yield*/, n];
+            case 2:
+                _b.sent();
+                _b.label = 3;
+            case 3:
+                n += step;
+                return [3 /*break*/, 1];
+            case 4: return [2 /*return*/];
+        }
+    });
+}
 var Direction;
 (function (Direction) {
     Direction[Direction["East"] = 0] = "East";
@@ -77,11 +128,6 @@ var Link = /** @class */ (function () {
     }
     return Link;
 }());
-var Grid = /** @class */ (function () {
-    function Grid() {
-    }
-    return Grid;
-}());
 var SetCellState = /** @class */ (function (_super) {
     __extends(SetCellState, _super);
     function SetCellState() {
@@ -137,6 +183,16 @@ function propagate_chain_id(grid, cell, chain_id) {
         }
     }
 }
+var Fail = /** @class */ (function (_super) {
+    __extends(Fail, _super);
+    function Fail() {
+        return _super !== null && _super.apply(this, arguments) || this;
+    }
+    return Fail;
+}(Action));
+function execute() {
+    throw new Error("failure executed!");
+}
 function process_hint(grid, hint) {
     var _a = get_cells(grid.cells, hint.cells), live_cells = _a[0], unknown_cells = _a[1], dead_cells = _a[2];
     if (unknown_cells.length > 0) {
@@ -189,23 +245,18 @@ function process_cell(grid, cell) {
 }
 var GridBuilder = /** @class */ (function () {
     function GridBuilder(xmax, ymax) {
-        return GridBuilder;
-        {
-            cells: HashMap: : new (),
-                links;
-            HashMap: : new (),
-                hints;
-            HashMap: : new (),
-                xmax,
-                ymax,
-            ;
-        }
-        ;
+        return {
+            cells: new HashMap(),
+            links: new HashMap(),
+            hints: new HashMap(),
+            xmax: xmax,
+            ymax: ymax
+        };
     }
     return GridBuilder;
 }());
 function add_cell(pos) {
-    this.cells.insert(pos, Cell, new (pos));
+    this.cells.insert(pos, new Cell(pos));
     this.xmax = max(this.xmax, pos.x);
     this.ymax = max(this.ymax, pos.y);
     this.try_connect_cell_with_link(pos, (pos, East));
@@ -217,7 +268,7 @@ function add_cell(pos) {
 }
 function add_link(link_id) {
     var _this = this;
-    this.links.insert(link_id, Link, new (link_id));
+    this.links.insert(link_id, new Link(link_id));
     var ;
     (pos, direction) = link_id;
     this.xmax = max(this.xmax, pos.x);
@@ -239,7 +290,7 @@ function add_link(link_id) {
 }
 function add_hint(hint_id, value) {
     var _this = this;
-    this.hints.insert(hint_id, Hint, new (hint_id, value));
+    this.hints.insert(hint_id, new Hint(hint_id, value));
     var ;
     (index, direction) = hint_id;
     match;
@@ -247,16 +298,16 @@ function add_hint(hint_id, value) {
     {
         (function (East) {
             var x = index;
-            for (y in 0..(_this.ymax + 1)) {
-                var pos = Pos, _a = void 0, x_1 = _a.x, y = _a.y;
+            for (var y in range(_this.ymax + 1)) {
+                var pos = Pos, _a = void 0, x_1 = _a.x, y_1 = _a.y;
                 _this.try_connect_hint_with_cell(hint_id, pos);
                 _this.try_connect_hint_with_link(hint_id, (pos, East));
             }
         },
             function (South) {
                 var y = index;
-                for (x in 0..(_this.xmax + 1)) {
-                    var pos = Pos, _a = void 0, x = _a.x, y_1 = _a.y;
+                for (var x in range(_this.xmax + 1)) {
+                    var pos = Pos, _a = void 0, x_2 = _a.x, y_2 = _a.y;
                     _this.try_connect_hint_with_cell(hint_id, pos);
                     _this.try_connect_hint_with_link(hint_id, (pos, South));
                 }
@@ -306,77 +357,67 @@ function try_connect_hint_with_link(hint_id, link_id) {
         }
     }
 }
-function build(self) {
-    Grid;
-    {
+function build() {
+    return {
         dirty_cells: this.cells.keys(),
-            dirty_links;
-        this.links.keys(),
-            dirty_hints;
-        this.hints.keys(),
-            cells;
-        this.cells,
-            hints;
-        this.hints,
-            links;
-        this.links,
-        ;
-    }
+        dirty_links: this.links.keys(),
+        dirty_hints: this.hints.keys(),
+        cells: this.cells,
+        hints: this.hints,
+        links: this.links
+    };
 }
-impl;
-Grid;
-{
-    constructor(cx, bigint, cy, bigint, live_links, Array < (Pos, Direction) > , hints, Array(), {
-        "const": zx = cx + 1,
-        "const": zy = cy + 1,
-        "const": builder = GridBuilder,
+var Grid = /** @class */ (function () {
+    function Grid(cx, cy, live_links, hints) {
+        var zx = cx + 1;
+        var zy = cy + 1;
+        var builder = new GridBuilder(cx, cy);
         // add cells
-        "for": y in 1..zy
-    }, {
-        "for": x in 1..zx
-    }, {
-        "const": pos = Pos
-    }, { x: x, y: y });
-    builder.add_cell(pos);
-}
-// add links
-for (y in 0..zy) {
-    for (x in 0..zx) {
-        var pos = Pos, _a = void 0, x = _a.x, y = _a.y;
-        if (y > 0) {
-            builder.add_link((pos, East));
+        for (var y in range(1, zy)) {
+            for (var x in range(1, zx)) {
+                var pos = Pos, _a = void 0, x_3 = _a.x, y_3 = _a.y;
+                builder.add_cell(pos);
+            }
         }
-        if (x > 0) {
-            builder.add_link((pos, South));
+        // add links
+        for (var y in range(zy)) {
+            for (var x in range(zx)) {
+                var pos = Pos, _b = void 0, x_4 = _b.x, y_4 = _b.y;
+                if (y_4 > 0) {
+                    builder.add_link((pos, East));
+                }
+                if (x_4 > 0) {
+                    builder.add_link((pos, South));
+                }
+            }
         }
+        // add hints
+        for (var ; (index, hint) in hints.enumerate();) {
+            builder.add_hint((index + 1, hint), .1), hint;
+            .0;
+            ;
+        }
+        // set some links Live as requested
+        for (var link_id in live_links) {
+            builder.links.get_mut(link_id).unwrap().state = Live;
+        }
+        builder.build();
     }
-}
-// add hints
-for (index, hint;;)
-     in hints.enumerate();
-{
-    builder.add_hint((index + 1, hint), .1), hint;
-    .0;
-    ;
-}
-// set some links Live as requested
-for (link_id in live_links) {
-    builder.links.get_mut(link_id).unwrap().state = Live;
-}
-builder.build();
-function solve(self) {
+    return Grid;
+}());
+function solve() {
     loop;
     {
         var actions = this.process();
         if (actions.is_empty()) {
             break;
         }
-        for (action in actions) {
-            action.execute(self);
+        for (var action in actions) {
+            action.execute();
         }
     }
 }
-function process(self) {
+function process() {
     while ()
         var Some;
     (cell_id) = this.dirty_cells.pop();
@@ -421,20 +462,19 @@ function process(self) {
     }
     return [];
 }
-Array < Cell > , Array();
-{
-    var result_1 = (new Array(), new Array(), new Array());
-    for (cell_id in cell_ids) {
+function get_cells(cells, cell_ids) {
+    var result = (new Array(), new Array(), new Array());
+    for (var cell_id in cell_ids) {
         if ()
             var Some;
         (cell) = cells.get(cell_id);
         {
             var target = match, cell, state, Live = (void 0).Live;
-            result_1;
+            result;
             .0,
-                function (Unknown) { return result_1; };
+                function (Unknown) { return result; };
             .1,
-                function (Dead) { return result_1; };
+                function (Dead) { return result; };
             .2,
             ;
         }
@@ -442,21 +482,20 @@ Array < Cell > , Array();
         target.push(cell);
     }
 }
-result;
-Array < Link > , Array();
-{
-    var result_2 = (new Array(), new Array(), new Array());
-    for (link_id in link_ids) {
+return result;
+function get_links(links, link_ids) {
+    var result = (new Array(), new Array(), new Array());
+    for (var link_id in link_ids) {
         if ()
             var Some;
         (link) = links.get(link_id);
         {
             var target = match, link, state, Live = (void 0).Live;
-            result_2;
+            result;
             .0,
-                function (Unknown) { return result_2; };
+                function (Unknown) { return result; };
             .1,
-                function (Dead) { return result_2; };
+                function (Dead) { return result; };
             .2,
             ;
         }
@@ -464,7 +503,7 @@ Array < Link > , Array();
         target.push(link);
     }
 }
-result;
+return result;
 function parse(input) {
     // sample:
     // 4x4:hCfA,4,3,4,S4,4,4,S3,4 
@@ -490,7 +529,7 @@ function parse(input) {
     // wow that's hard. live links are actually the same as in the first example
     // sample:
     // 4x4:CkAc,S4,3,3,4,S3,4,3,4
-    panic("idk how to read existing track segments");
+    throw new Error("idk how to read existing track segments");
 }
 /*
 elaborate:
