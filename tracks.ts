@@ -3,6 +3,10 @@ function main() {
     console.log("Hello, world!");
 }
 
+class Option<T> {
+    value: T;
+}
+
 enum Direction {
     East,
     South,
@@ -11,6 +15,27 @@ enum Direction {
 class Pos {
     x: bigint;
     y: bigint;
+
+    constructor(x: bigint, y: bigint) {
+        this.x = x;
+        this.y = y;
+    }
+
+    function south() : Pos {
+        return new Pos(this.x, this.y + 1);
+    }
+
+    function east() : Pos {
+        return new Pos(this.x + 1, this.y);
+    }
+
+    function north() : Pos {
+        return new Pos(this.x, this.y - 1);
+    }
+
+    function west() : Pos {
+        return new Pos(this.x - 1, this.y);
+    }
 }
 
 type HintId = [bigint, Direction];
@@ -24,10 +49,10 @@ enum State {
 }
 
 class Hint {
-    id: HintId,
-    value: bigint,
-    cells: Array<CellId>,
-    links: Array<LinkId>,
+    id: HintId;
+    value: bigint;
+    cells: Array<CellId>;
+    links: Array<LinkId>;
 
     constructor(id: HintId, value: bigint) {
         this.id = id;
@@ -42,333 +67,291 @@ class Cell {
     hints: Array<HintId>,
     links: Array<LinkId>,
     state: State,
+
+    constructor(id: CellId) {
+        this.id = id;
+        this.hints = new Array();
+        this.links = new Array();
+        this.state = Unknown;
+    }
 }
 
-impl Cell {
-    fn new(id: CellId) -> Self {
-        Cell {
-            id,
-            hints: Array::new(),
-            links: Array::new(),
-            state: Unknown,
+class Link {
+    id: LinkId;
+    chain_id: LinkId;
+    hint_id: Option<HintId>;
+    cells: Array<CellId>;
+    state: State;
+
+    constructor(id: LinkId) {
+        this.id = id;
+        this.chain_id = id;
+        this.hint_id = Option.none();
+        this.cells = new Array();
+        this.state = Unknown;
+    }
+}
+
+class Grid {
+    dirty_cells: Array<CellId>;
+    dirty_links: Array<LinkId>;
+    dirty_hints: Array<HintId>;
+    cells: HashMap<CellId, Cell>;
+    hints: HashMap<HintId, Hint>;
+    links: HashMap<LinkId, Link>;
+}
+
+interface Action {
+    function execute(grid: Grid);
+}
+
+class SetCellState extends Action {
+    cell_id: CellId;
+    new_state: State;
+
+    function execute(grid: Grid) {
+        const cell = grid.cells.get(this.cell_id);
+        cell.state = this.new_state;
+
+        const [_, unknown_links, _] = get_links(grid.links, cell.links);
+        for(const link in unknown_links) {
+            grid.dirty_links.push(link.id);
+        }
+        for(const hint_id in cell.hints) {
+            grid.dirty_hints.push(hint_id);
         }
     }
 }
 
-struct Link {
-    id: LinkId,
-    chain_id: LinkId,
-    hint_id: Option<HintId>,
-    cells: Array<CellId>,
-    state: State,
-}
+class SetLinkState extends Action {
+    link_id: LinkId;
+    new_state: State;
 
-impl Link {
-    fn new(id: LinkId) -> Self {
-        Link {
-            id,
-            chain_id: id,
-            hint_id: None,
-            cells: Array::new(),
-            state: Unknown,
+    function execute(grid: Grid) {
+        const link = grid.links.get(this.link_id);
+        link.state = this.new_state;
+
+        const [live_cells, unknown_cells, _] = get_cells(grid.cells, link.cells);
+        for(const cell in unknown_cells) {
+            grid.dirty_cells.push(cell.id);
+        }
+        if(link.hint_id.is_some()) {
+            grid.dirty_hints.push(link.hint_id.unwrap());
+        }
+        for(const cell in live_cells) {
+            grid.dirty_cells.push(cell.id);
+            this.propagate_chain_id(grid, cell, link.chain_id);
+        }
+    }
+
+    // For every connected live link, set its chain id to match
+    function propagate_chain_id(grid: Grid, cell: Cell, chain_id: LinkId) {
+        const [live_links, _, _] = get_links(grid.links, cell.links);
+        for(const link in live_links) {
+            if(link.chain_id == chain_id) {
+                continue;
+            }
+            link.chain_id = chain_id;
+            grid.dirty_links.push(link.id);
+            grid.dirty_cells.push(cell.id);
+
+            for(const neighbor_id in link.cells) {
+                propagate_chain_id(grid, grid.cells.get(neighbor_id), chain_id);
+            }
         }
     }
 }
 
-enum Action {
-    SetCellState(CellId, State),
-    SetLinkState(LinkId, State),
-    Fail,
-}
-use Action::*;
+function process_hint(grid: Grid, hint: Hint) : Array<Action> {
+    const [live_cells, unknown_cells, dead_cells] = get_cells(grid.cells, hint.cells);
 
-struct Grid {
-    dirty_cells: Array<CellId>,
-    dirty_links: Array<LinkId>,
-    dirty_hints: Array<HintId>,
-    cells: HashMap<CellId, Cell>,
-    hints: HashMap<HintId, Hint>,
-    links: HashMap<LinkId, Link>,
-}
-
-impl Pos {
-    fn south(&self) -> Self {
-        Pos {
-            x: self.x,
-            y: self.y + 1,
-        }
-    }
-
-    fn east(&self) -> Self {
-        Pos {
-            x: self.x + 1,
-            y: self.y,
-        }
-    }
-
-    fn north(&self) -> Self {
-        Pos {
-            x: self.x,
-            y: self.y - 1,
-        }
-    }
-
-    fn west(&self) -> Self {
-        Pos {
-            x: self.x - 1,
-            y: self.y,
-        }
-    }
-}
-
-impl Action {
-    fn execute(&self, grid: &mut Grid) {
-        match self {
-            SetCellState(cell_id, state) => {
-                let mut cell = grid.cells.get_mut(cell_id).unwrap();
-                cell.state = *state;
-                let (_, unknown_links, _) = get_links(&grid.links, &cell.links);
-                for link in unknown_links {
-                    grid.dirty_links.push(link.id);
-                }
-                for hint_id in &cell.hints {
-                    grid.dirty_hints.push(*hint_id);
-                }
-            },
-            SetLinkState(link_id, state) => {
-                let mut link = grid.links.get_mut(link_id).unwrap();
-                link.state = *state;
-                let link = grid.links.get(link_id).unwrap();
-
-                let (live_cells, unknown_cells, _) = get_cells(&grid.cells, &link.cells);
-                for cell in unknown_cells {
-                    grid.dirty_cells.push(cell.id);
-                }
-                if let Some(hint_id) = link.hint_id {
-                    grid.dirty_hints.push(hint_id);
-                }
-                for cell_id in live_cells.clone().into_iter().map(|cell| cell.id).collect() {
-                    grid.dirty_cells.push(cell_id);
-                    if let Some(link) = grid.links.get(link_id) {
-                        propagate_chain_id(grid, link.id, link.chain_id);
-                    }
-                }
-            },
-            Fail => panic!("fail not implemented yet"),
-        }
-    }
-}
-
-fn propagate_chain_id(grid: &mut Grid, link_id: LinkId, chain_id: LinkId) {
-    let mut link_ids = vec![link_id];
-
-    while let Some(link_id) = link_ids.pop() {
-        let mut link = grid.links.get_mut(&link_id).unwrap();
-        link.chain_id = chain_id;
-        let (live_cells, _, _) = get_cells(&grid.cells, &link.cells);
-        for cell in live_cells {
-            let (live_neighbors, _, _) = get_links(&grid.links, &cell.links);
-            let mut live_neighbor_ids = live_neighbors.into_iter()
-                .filter(|link| link.chain_id != chain_id)
-                .map(|link| link.id)
-                .collect();
-            link_ids.append(&mut live_neighbor_ids);
-        }
-    }
-}
-
-fn process_hint(grid: &Grid, hint: &Hint) -> Array<Action> {
-    let (live_cells, unknown_cells, dead_cells) = get_cells(&grid.cells, &hint.cells);
-
-    if unknown_cells.len() > 0 {
-        if live_cells.len() == hint.value {
-            return unknown_cells.into_iter().map(|cell| SetCellState(cell.id, Dead)).collect();
+    if(unknown_cells.length > 0) {
+        if(live_cells.length == hint.value) {
+            return unknown_cells.map(cell => new SetCellState(cell.id, Dead));
         }
 
-        if live_cells.len() + unknown_cells.len() == hint.value {
-            return unknown_cells.into_iter().map(|cell| SetCellState(cell.id, Live)).collect();
+        if(live_cells.length + unknown_cells.length == hint.value) {
+            return unknown_cells.map(cell => new SetCellState(cell.id, Live));
         }
 
-        if live_cells.len() + unknown_cells.len() == hint.value - 1 {
-            let (live_links, unknown_links, dead_links) = get_links(&grid.links, &hint.links);
-            if unknown_links.len() > 0 {
-                return unknown_links.into_iter().map(|link| SetLinkState(link.id, Dead)).collect();
+        if(live_cells.length + unknown_cells.length == hint.value - 1) {
+            const [live_links, unknown_links, dead_links] = get_links(grid.links, hint.links);
+            if(unknown_links.length > 0) {
+                return unknown_links.map(link => new SetLinkState(link.id, Dead));
             }
         }
     }
 
-    vec![]
+    return [];
 }
 
-fn process_link(grid: &Grid, link: &Link) -> Array<Action> {
-    let (live_cells, _, _) = get_cells(&grid.cells, &link.cells);
-    let neighbor_link_ids = live_cells.into_iter().flat_map(|cell| cell.links.clone()).collect();
-    let (live_neighbor_links, _, _) = get_links(&grid.links, &neighbor_link_ids);
+function process_link(grid: Grid, link: Link) : Array<Action> {
+    const [live_cells, _, _] = get_cells(grid.cells, link.cells);
+    const neighbor_link_ids = live_cells.flat_map(|cell| cell.links.clone());
+    const [live_neighbor_links, _, _] = get_links(grid.links, neighbor_link_ids);
 
-    if live_neighbor_links.windows(2).any(|w| w[0].chain_id == w[1].chain_id) {
-        return vec![SetLinkState(link.id, Dead)]; // closed loop rule
+    if(live_neighbor_links.windows(2).any(|w| w[0].chain_id == w[1].chain_id)) {
+        return [SetLinkState(link.id, Dead)]; // closed loop rule
     }
 
-    vec![]
+    return [];
 }
 
-fn process_cell(grid: &Grid, cell: &Cell) -> Array<Action> {
-    let (live_links, unknown_links, dead_links) = get_links(&grid.links, &cell.links);
+function process_cell(grid: Grid, cell: Cell) : Array<Action> {
+    const [live_links, unknown_links, dead_links] = get_links(grid.links, cell.links);
 
-    if live_links.len() == 1 && cell.state == Dead {
-        return vec![Fail];
+    if(live_links.length == 1 && cell.state == Dead) {
+        return [new Fail()];
     }
 
-    if unknown_links.len() > 0 {
-        if cell.state == Dead || live_links.len() == 2 {
-            return unknown_links.into_iter().map(|link| SetLinkState(link.id, Dead)).collect();
+    if(unknown_links.length > 0) {
+        if(cell.state == Dead || live_links.length == 2) {
+            return unknown_links.map(link => new SetLinkState(link.id, Dead));
         }
 
-        if cell.state == Live && unknown_links.len() <= 2 {
-            return unknown_links.into_iter().map(|link| SetLinkState(link.id, Live)).collect();
-        }
-    }
-
-    if cell.state == Unknown {
-        if dead_links.len() > 3 {
-            return vec![SetCellState(cell.id, Dead)];
-        }
-
-        if live_links.len() > 0 {
-            return vec![SetCellState(cell.id, Live)];
+        if(cell.state == Live && unknown_links.length <= 2) {
+            return unknown_links.map(link => new SetLinkState(link.id, Live));
         }
     }
 
-    vec![]
+    if(cell.state == Unknown) {
+        if(dead_links.length >= 3) {
+            return [SetCellState(cell.id, Dead)];
+        }
+
+        if(live_links.length > 0) {
+            return [SetCellState(cell.id, Live)];
+        }
+    }
+
+    return [];
 }
 
-struct GridBuilder {
-    cells: HashMap<CellId, Cell>,
-    links: HashMap<LinkId, Link>,
-    hints: HashMap<HintId, Hint>,
-    xmax: bigint,
-    ymax: bigint,
-}
+class GridBuilder {
+    cells: HashMap<CellId, Cell>;
+    links: HashMap<LinkId, Link>;
+    hints: HashMap<HintId, Hint>;
+    xmax: bigint;
+    ymax: bigint;
 
-impl GridBuilder {
-    fn new(xmax: bigint, ymax: bigint) -> Self {
-        GridBuilder {
+    constructor(xmax: bigint, ymax: bigint) {
+        return GridBuilder {
             cells: HashMap::new(),
             links: HashMap::new(),
             hints: HashMap::new(),
             xmax,
             ymax,
-        }
+        };
     }
 
-    fn add_cell(&mut self, pos: Pos) {
-        self.cells.insert(pos, Cell::new(pos));
-        self.xmax = max(self.xmax, pos.x);
-        self.ymax = max(self.ymax, pos.y);
+    function add_cell(pos: Pos) {
+        this.cells.insert(pos, Cell::new(pos));
+        this.xmax = max(this.xmax, pos.x);
+        this.ymax = max(this.ymax, pos.y);
 
-        self.try_connect_cell_with_link(pos, (pos, East));
-        self.try_connect_cell_with_link(pos, (pos.west(), East));
-        self.try_connect_cell_with_link(pos, (pos, South));
-        self.try_connect_cell_with_link(pos, (pos.north(), South));
+        this.try_connect_cell_with_link(pos, (pos, East));
+        this.try_connect_cell_with_link(pos, (pos.west(), East));
+        this.try_connect_cell_with_link(pos, (pos, South));
+        this.try_connect_cell_with_link(pos, (pos.north(), South));
 
-        self.try_connect_hint_with_cell((pos.y, East), pos);
-        self.try_connect_hint_with_cell((pos.x, South), pos);
+        this.try_connect_hint_with_cell((pos.y, East), pos);
+        this.try_connect_hint_with_cell((pos.x, South), pos);
     }
 
-    fn add_link(&mut self, link_id: LinkId) {
-        self.links.insert(link_id, Link::new(link_id));
+    function add_link(link_id: LinkId) {
+        this.links.insert(link_id, Link::new(link_id));
 
-        let (pos, direction) = link_id;
-        self.xmax = max(self.xmax, pos.x);
-        self.ymax = max(self.ymax, pos.y);
+        const (pos, direction) = link_id;
+        this.xmax = max(this.xmax, pos.x);
+        this.ymax = max(this.ymax, pos.y);
 
-        self.try_connect_cell_with_link(pos, link_id);
+        this.try_connect_cell_with_link(pos, link_id);
         match direction {
             East => {
-                self.try_connect_cell_with_link(pos.east(), link_id);
-                self.try_connect_hint_with_link((pos.y, East), link_id);
+                this.try_connect_cell_with_link(pos.east(), link_id);
+                this.try_connect_hint_with_link((pos.y, East), link_id);
             },
             South => {
-                self.try_connect_cell_with_link(pos.south(), link_id);
-                self.try_connect_hint_with_link((pos.x, South), link_id);
+                this.try_connect_cell_with_link(pos.south(), link_id);
+                this.try_connect_hint_with_link((pos.x, South), link_id);
             },
         }
     }
 
-    fn add_hint(&mut self, hint_id: HintId, value: bigint) {
-        self.hints.insert(hint_id, Hint::new(hint_id, value));
+    function add_hint(hint_id: HintId, value: bigint) {
+        this.hints.insert(hint_id, Hint::new(hint_id, value));
 
-        let (index, direction) = hint_id;
+        const (index, direction) = hint_id;
         match direction {
             East => {
-                let x = index;
-                for y in 0..(self.ymax + 1) {
-                    let pos = Pos { x, y };
-                    self.try_connect_hint_with_cell(hint_id, pos);
-                    self.try_connect_hint_with_link(hint_id, (pos, East));
+                const x = index;
+                for y in 0..(this.ymax + 1) {
+                    const pos = Pos { x, y };
+                    this.try_connect_hint_with_cell(hint_id, pos);
+                    this.try_connect_hint_with_link(hint_id, (pos, East));
                 }
             },
             South => {
-                let y = index;
-                for x in 0..(self.xmax + 1) {
-                    let pos = Pos { x, y };
-                    self.try_connect_hint_with_cell(hint_id, pos);
-                    self.try_connect_hint_with_link(hint_id, (pos, South));
+                const y = index;
+                for x in 0..(this.xmax + 1) {
+                    const pos = Pos { x, y };
+                    this.try_connect_hint_with_cell(hint_id, pos);
+                    this.try_connect_hint_with_link(hint_id, (pos, South));
                 }
             },
         }
     }
 
-    fn try_connect_cell_with_link(&mut self, cell_id: CellId, link_id: LinkId) {
-        if let Some(cell) = self.cells.get_mut(&cell_id) {
-            if let Some(link) = self.links.get_mut(&link_id) {
+    function try_connect_cell_with_link(cell_id: CellId, link_id: LinkId) {
+        if(const Some(cell) = this.cells.get_mut(cell_id)) {
+            if(const Some(link) = this.links.get_mut(link_id)) {
                 cell.links.push(link_id);
                 link.cells.push(cell_id);
             }
         }
     }
 
-    fn try_connect_hint_with_cell(&mut self, hint_id: HintId, cell_id: CellId) {
-        if let Some(hint) = self.hints.get_mut(&hint_id) {
-            if let Some(cell) = self.cells.get_mut(&cell_id) {
+    function try_connect_hint_with_cell(hint_id: HintId, cell_id: CellId) {
+        if(const Some(hint) = this.hints.get_mut(hint_id)) {
+            if(const Some(cell) = this.cells.get_mut(cell_id)) {
                 hint.cells.push(cell_id);
                 cell.hints.push(hint_id);
             }
         }
     }
 
-    fn try_connect_hint_with_link(&mut self, hint_id: HintId, link_id: LinkId) {
-        if let Some(hint) = self.hints.get_mut(&hint_id) {
-            if let Some(link) = self.links.get_mut(&link_id) {
+    function try_connect_hint_with_link(hint_id: HintId, link_id: LinkId) {
+        if(const Some(hint) = this.hints.get_mut(hint_id)) {
+            if(const Some(link) = this.links.get_mut(link_id)) {
                 hint.links.push(link_id);
                 link.hint_id = Some(hint_id);
             }
         }
     }
 
-    fn build(self) -> Grid {
+    function build(self) : Grid {
         Grid {
-            dirty_cells: self.cells.keys().map(|id| *id).collect(),
-            dirty_links: self.links.keys().map(|id| *id).collect(),
-            dirty_hints: self.hints.keys().map(|id| *id).collect(),
-            cells: self.cells,
-            hints: self.hints,
-            links: self.links,
+            dirty_cells: this.cells.keys(),
+            dirty_links: this.links.keys(),
+            dirty_hints: this.hints.keys(),
+            cells: this.cells,
+            hints: this.hints,
+            links: this.links,
         }
     }
 }
 
 impl Grid {
-    fn new(cx: bigint, cy: bigint, live_links: Array<(Pos, Direction)>, hints: Array<(bigint, Direction)>) -> Self {
-        let zx = cx + 1;
-        let zy = cy + 1;
+    constructor(cx: bigint, cy: bigint, live_links: Array<(Pos, Direction)>, hints: Array<(bigint, Direction)>) {
+        const zx = cx + 1;
+        const zy = cy + 1;
 
-        let mut builder = GridBuilder::new(cx, cy);
+        const builder = GridBuilder::new(cx, cy);
 
         // add cells
         for y in 1..zy {
             for x in 1..zx {
-                let pos = Pos { x, y };
+                const pos = Pos { x, y };
                 builder.add_cell(pos);
             }
         }
@@ -376,35 +359,35 @@ impl Grid {
         // add links
         for y in 0..zy {
             for x in 0..zx {
-                let pos = Pos { x, y };
+                const pos = Pos { x, y };
 
-                if y > 0 {
+                if(y > 0) {
                     builder.add_link((pos, East));
                 }
 
-                if x > 0 {
+                if(x > 0) {
                     builder.add_link((pos, South));
                 }
             }
         }
 
         // add hints
-        for (index, hint) in hints.into_iter().enumerate() {
+        for (index, hint) in hints.enumerate() {
             builder.add_hint((index + 1, hint.1), hint.0);
         }
 
         // set some links Live as requested
         for link_id in live_links {
-            builder.links.get_mut(&link_id).unwrap().state = Live;
+            builder.links.get_mut(link_id).unwrap().state = Live;
         }
 
         builder.build()
     }
 
-    fn solve(&mut self) {
+    function solve(self) {
         loop {
-            let actions = self.process();
-            if actions.is_empty() {
+            const actions = this.process();
+            if(actions.is_empty()) {
                 break;
             }
 
@@ -414,47 +397,47 @@ impl Grid {
         }
     }
 
-    fn process(&mut self) -> Array<Action> {
-        while let Some(cell_id) = self.dirty_cells.pop() {
-            if let Some(cell) = self.cells.get(&cell_id) {
-                let result = process_cell(&self, cell);
-                if !result.is_empty() {
+    function process(self) : Array<Action> {
+        while const Some(cell_id) = this.dirty_cells.pop() {
+            if(const Some(cell) = this.cells.get(cell_id)) {
+                const result = process_cell(cell);
+                if(!result.is_empty()) {
                     return result;
                 }
             }
         }
 
-        while let Some(hint_id) = self.dirty_hints.pop() {
-            if let Some(hint) = self.hints.get(&hint_id) {
-                let result = process_hint(&self, hint);
-                if !result.is_empty() {
+        while const Some(hint_id) = this.dirty_hints.pop() {
+            if(const Some(hint) = this.hints.get(hint_id)) {
+                const result = process_hint(hint);
+                if(!result.is_empty()) {
                     return result;
                 }
             }
         }
 
-        while let Some(link_id) = self.dirty_links.pop() {
-            if let Some(link) = self.links.get(&link_id) {
-                let result = process_link(&self, link);
-                if !result.is_empty() {
+        while const Some(link_id) = this.dirty_links.pop() {
+            if(const Some(link) = this.links.get(link_id)) {
+                const result = process_link(link);
+                if(!result.is_empty()) {
                     return result;
                 }
             }
         }
 
-        vec![]
+        return [];
     }
 }
 
-fn get_cells<'a>(cells: &'a HashMap<CellId, Cell>, cell_ids: &Array<CellId>) -> (Array<&'a Cell>, Array<&'a Cell>, Array<&'a Cell>) {
-    let mut result = (Array::new(), Array::new(), Array::new());
+function get_cells(cells: HashMap<CellId, Cell>, cell_ids: Array<CellId>) : (Array<Cell>, Array<Cell>, Array<Cell>) {
+    const result = (new Array(), new Array(), new Array());
 
     for cell_id in cell_ids {
-        if let Some(cell) = cells.get(&cell_id) {
-            let mut target = match cell.state {
-                Live => &mut result.0,
-                Unknown => &mut result.1,
-                Dead => &mut result.2,
+        if(const Some(cell) = cells.get(cell_id)) {
+            const target = match cell.state {
+                Live => result.0,
+                Unknown => result.1,
+                Dead => result.2,
             };
 
             target.push(cell);
@@ -464,15 +447,15 @@ fn get_cells<'a>(cells: &'a HashMap<CellId, Cell>, cell_ids: &Array<CellId>) -> 
     result
 }
 
-fn get_links<'a>(links: &'a HashMap<LinkId, Link>, link_ids: &Array<LinkId>) -> (Array<&'a Link>, Array<&'a Link>, Array<&'a Link>) {
-    let mut result = (Array::new(), Array::new(), Array::new());
+function get_links(links: HashMap<LinkId, Link>, link_ids: Array<LinkId>) : (Array<Link>, Array<Link>, Array<Link>) {
+    const result = (new Array(), new Array(), new Array());
 
     for link_id in link_ids {
-        if let Some(link) = links.get(&link_id) {
-            let mut target = match link.state {
-                Live => &mut result.0,
-                Unknown => &mut result.1,
-                Dead => &mut result.2,
+        if(const Some(link) = links.get(link_id)) {
+            const target = match link.state {
+                Live => result.0,
+                Unknown => result.1,
+                Dead => result.2,
             };
 
             target.push(link);
@@ -483,7 +466,7 @@ fn get_links<'a>(links: &'a HashMap<LinkId, Link>, link_ids: &Array<LinkId>) -> 
 }
 
 
-fn parse(input: &str) -> Grid {
+function parse(input: str) : Grid {
     // sample:
     // 4x4:hCfA,4,3,4,S4,4,4,S3,4 
     // that's a 4x4 grid, with:
