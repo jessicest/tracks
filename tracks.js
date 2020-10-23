@@ -82,20 +82,20 @@ var Pos = /** @class */ (function () {
         this.x = x;
         this.y = y;
     }
+    Pos.prototype.south = function () {
+        return new Pos(this.x, this.y + 1);
+    };
+    Pos.prototype.east = function () {
+        return new Pos(this.x + 1, this.y);
+    };
+    Pos.prototype.north = function () {
+        return new Pos(this.x, this.y - 1);
+    };
+    Pos.prototype.west = function () {
+        return new Pos(this.x - 1, this.y);
+    };
     return Pos;
 }());
-function south() {
-    return new Pos(this.x, this.y + 1);
-}
-function east() {
-    return new Pos(this.x + 1, this.y);
-}
-function north() {
-    return new Pos(this.x, this.y - 1);
-}
-function west() {
-    return new Pos(this.x - 1, this.y);
-}
 var State;
 (function (State) {
     State[State["Live"] = 0] = "Live";
@@ -135,66 +135,66 @@ var SetCellState = /** @class */ (function (_super) {
     function SetCellState() {
         return _super !== null && _super.apply(this, arguments) || this;
     }
+    SetCellState.prototype.execute = function (grid) {
+        var cell = grid.cells.get(this.cell_id);
+        cell.state = this.new_state;
+        var _a = get_links(grid.links, cell.links), _ = _a[0], unknown_links = _a[1], _ = _a[2];
+        for (var link in unknown_links) {
+            grid.dirty_links.add(link.id);
+        }
+        for (var hint_id in cell.hints) {
+            grid.dirty_hints.add(hint_id);
+        }
+    };
     return SetCellState;
 }(Action));
-function execute(grid) {
-    var cell = grid.cells.get(this.cell_id);
-    cell.state = this.new_state;
-    var _a = get_links(grid.links, cell.links), _ = _a[0], unknown_links = _a[1], _ = _a[2];
-    for (var link in unknown_links) {
-        grid.dirty_links.add(link.id);
-    }
-    for (var hint_id in cell.hints) {
-        grid.dirty_hints.add(hint_id);
-    }
-}
 var SetLinkState = /** @class */ (function (_super) {
     __extends(SetLinkState, _super);
     function SetLinkState() {
         return _super !== null && _super.apply(this, arguments) || this;
     }
+    SetLinkState.prototype.execute = function (grid) {
+        var link = grid.links.get(this.link_id);
+        link.state = this.new_state;
+        var _a = get_cells(grid.cells, link.cells), live_cells = _a[0], unknown_cells = _a[1], _ = _a[2];
+        for (var cell in unknown_cells) {
+            grid.dirty_cells.add(cell.id);
+        }
+        if (link.hint_id.is_some()) {
+            grid.dirty_hints.add(link.hint_id.unwrap());
+        }
+        for (var cell in live_cells) {
+            grid.dirty_cells.add(cell.id);
+            this.propagate_chain_id(grid, cell, link.chain_id);
+        }
+    };
+    // For every connected live link, set its chain id to match
+    SetLinkState.prototype.propagate_chain_id = function (grid, cell, chain_id) {
+        var _a = get_links(grid.links, cell.links), live_links = _a[0], _ = _a[1], _ = _a[2];
+        for (var link in live_links) {
+            if (link.chain_id == chain_id) {
+                continue;
+            }
+            link.chain_id = chain_id;
+            grid.dirty_links.add(link.id);
+            grid.dirty_cells.add(cell.id);
+            for (var neighbor_id in link.cells) {
+                propagate_chain_id(grid, grid.cells.get(neighbor_id), chain_id);
+            }
+        }
+    };
     return SetLinkState;
 }(Action));
-function execute(grid) {
-    var link = grid.links.get(this.link_id);
-    link.state = this.new_state;
-    var _a = get_cells(grid.cells, link.cells), live_cells = _a[0], unknown_cells = _a[1], _ = _a[2];
-    for (var cell in unknown_cells) {
-        grid.dirty_cells.add(cell.id);
-    }
-    if (link.hint_id.is_some()) {
-        grid.dirty_hints.add(link.hint_id.unwrap());
-    }
-    for (var cell in live_cells) {
-        grid.dirty_cells.add(cell.id);
-        this.propagate_chain_id(grid, cell, link.chain_id);
-    }
-}
-// For every connected live link, set its chain id to match
-function propagate_chain_id(grid, cell, chain_id) {
-    var _a = get_links(grid.links, cell.links), live_links = _a[0], _ = _a[1], _ = _a[2];
-    for (var link in live_links) {
-        if (link.chain_id == chain_id) {
-            continue;
-        }
-        link.chain_id = chain_id;
-        grid.dirty_links.add(link.id);
-        grid.dirty_cells.add(cell.id);
-        for (var neighbor_id in link.cells) {
-            propagate_chain_id(grid, grid.cells.get(neighbor_id), chain_id);
-        }
-    }
-}
 var Fail = /** @class */ (function (_super) {
     __extends(Fail, _super);
     function Fail() {
         return _super !== null && _super.apply(this, arguments) || this;
     }
+    Fail.prototype.execute = function () {
+        throw new Error("failure executed!");
+    };
     return Fail;
 }(Action));
-function execute() {
-    throw new Error("failure executed!");
-}
 function process_hint(grid, hint) {
     var _a = get_cells(grid.cells, hint.cells), live_cells = _a[0], unknown_cells = _a[1], dead_cells = _a[2];
     if (unknown_cells.length > 0) {
@@ -255,94 +255,94 @@ var GridBuilder = /** @class */ (function () {
             ymax: ymax
         };
     }
+    GridBuilder.prototype.add_cell = function (pos) {
+        this.cells.set(pos, new Cell(pos));
+        this.xmax = max(this.xmax, pos.x);
+        this.ymax = max(this.ymax, pos.y);
+        this.try_connect_cell_with_link(pos, (pos, East));
+        this.try_connect_cell_with_link(pos, (pos.west(), East));
+        this.try_connect_cell_with_link(pos, (pos, South));
+        this.try_connect_cell_with_link(pos, (pos.north(), South));
+        this.try_connect_hint_with_cell((pos.y, East), pos);
+        this.try_connect_hint_with_cell((pos.x, South), pos);
+    };
+    GridBuilder.prototype.add_link = function (link_id) {
+        this.links.set(link_id, new Link(link_id));
+        var ;
+        (pos, direction) = link_id;
+        this.xmax = max(this.xmax, pos.x);
+        this.ymax = max(this.ymax, pos.y);
+        this.try_connect_cell_with_link(pos, link_id);
+        switch (direction) {
+            case East:
+                this.try_connect_cell_with_link(pos.east(), link_id);
+                this.try_connect_hint_with_link((pos.y, East), link_id);
+                break;
+            case South:
+                this.try_connect_cell_with_link(pos.south(), link_id);
+                this.try_connect_hint_with_link((pos.x, South), link_id);
+                break;
+        }
+    };
+    GridBuilder.prototype.add_hint = function (hint_id, value) {
+        this.hints.set(hint_id, new Hint(hint_id, value));
+        var ;
+        (index, direction) = hint_id;
+        switch (direction) {
+            case East:
+                var x = index;
+                for (var y_1 in range(this.ymax + 1)) {
+                    var pos = { x: x, y: y_1 };
+                    this.try_connect_hint_with_cell(hint_id, pos);
+                    this.try_connect_hint_with_link(hint_id, (pos, East));
+                }
+                break;
+            case South:
+                var y = index;
+                for (var x_1 in range(this.xmax + 1)) {
+                    var pos = { x: x_1, y: y };
+                    this.try_connect_hint_with_cell(hint_id, pos);
+                    this.try_connect_hint_with_link(hint_id, (pos, South));
+                }
+                break;
+        }
+    };
+    GridBuilder.prototype.try_connect_cell_with_link = function (cell_id, link_id) {
+        var cell = this.cells.get(cell_id);
+        var link = this.links.get(link_id);
+        if (cell && link) {
+            cell.links.push(link_id);
+            link.cells.push(cell_id);
+        }
+    };
+    GridBuilder.prototype.try_connect_hint_with_cell = function (hint_id, cell_id) {
+        var hint = this.hints.get(hint_id);
+        var cell = this.cells.get(cell_id);
+        if (hint && cell) {
+            hint.cells.push(cell_id);
+            cell.hints.push(hint_id);
+        }
+    };
+    GridBuilder.prototype.try_connect_hint_with_link = function (hint_id, link_id) {
+        var hint = this.hints.get(hint_id);
+        var link = this.links.get(link_id);
+        if (hint && link) {
+            hint.links.push(link_id);
+            link.hint_id = hint_id;
+        }
+    };
+    GridBuilder.prototype.build = function () {
+        return {
+            dirty_cells: new (Set.bind.apply(Set, __spreadArrays([void 0], this.cells.keys())))(),
+            dirty_links: new (Set.bind.apply(Set, __spreadArrays([void 0], this.links.keys())))(),
+            dirty_hints: new (Set.bind.apply(Set, __spreadArrays([void 0], this.hints.keys())))(),
+            cells: this.cells,
+            hints: this.hints,
+            links: this.links
+        };
+    };
     return GridBuilder;
 }());
-function add_cell(pos) {
-    this.cells.set(pos, new Cell(pos));
-    this.xmax = max(this.xmax, pos.x);
-    this.ymax = max(this.ymax, pos.y);
-    this.try_connect_cell_with_link(pos, (pos, East));
-    this.try_connect_cell_with_link(pos, (pos.west(), East));
-    this.try_connect_cell_with_link(pos, (pos, South));
-    this.try_connect_cell_with_link(pos, (pos.north(), South));
-    this.try_connect_hint_with_cell((pos.y, East), pos);
-    this.try_connect_hint_with_cell((pos.x, South), pos);
-}
-function add_link(link_id) {
-    this.links.set(link_id, new Link(link_id));
-    var ;
-    (pos, direction) = link_id;
-    this.xmax = max(this.xmax, pos.x);
-    this.ymax = max(this.ymax, pos.y);
-    this.try_connect_cell_with_link(pos, link_id);
-    switch (direction) {
-        case East:
-            this.try_connect_cell_with_link(pos.east(), link_id);
-            this.try_connect_hint_with_link((pos.y, East), link_id);
-            break;
-        case South:
-            this.try_connect_cell_with_link(pos.south(), link_id);
-            this.try_connect_hint_with_link((pos.x, South), link_id);
-            break;
-    }
-}
-function add_hint(hint_id, value) {
-    this.hints.set(hint_id, new Hint(hint_id, value));
-    var ;
-    (index, direction) = hint_id;
-    switch (direction) {
-        case East:
-            var x = index;
-            for (var y_1 in range(this.ymax + 1)) {
-                var pos = { x: x, y: y_1 };
-                this.try_connect_hint_with_cell(hint_id, pos);
-                this.try_connect_hint_with_link(hint_id, (pos, East));
-            }
-            break;
-        case South:
-            var y = index;
-            for (var x_1 in range(this.xmax + 1)) {
-                var pos = { x: x_1, y: y };
-                this.try_connect_hint_with_cell(hint_id, pos);
-                this.try_connect_hint_with_link(hint_id, (pos, South));
-            }
-            break;
-    }
-}
-function try_connect_cell_with_link(cell_id, link_id) {
-    var cell = this.cells.get(cell_id);
-    var link = this.links.get(link_id);
-    if (cell && link) {
-        cell.links.push(link_id);
-        link.cells.push(cell_id);
-    }
-}
-function try_connect_hint_with_cell(hint_id, cell_id) {
-    var hint = this.hints.get(hint_id);
-    var cell = this.cells.get(cell_id);
-    if (hint && cell) {
-        hint.cells.push(cell_id);
-        cell.hints.push(hint_id);
-    }
-}
-function try_connect_hint_with_link(hint_id, link_id) {
-    var hint = this.hints.get(hint_id);
-    var link = this.links.get(link_id);
-    if (hint && link) {
-        hint.links.push(link_id);
-        link.hint_id = hint_id;
-    }
-}
-function build() {
-    return {
-        dirty_cells: new (Set.bind.apply(Set, __spreadArrays([void 0], this.cells.keys())))(),
-        dirty_links: new (Set.bind.apply(Set, __spreadArrays([void 0], this.links.keys())))(),
-        dirty_hints: new (Set.bind.apply(Set, __spreadArrays([void 0], this.hints.keys())))(),
-        cells: this.cells,
-        hints: this.hints,
-        links: this.links
-    };
-}
 var Grid = /** @class */ (function () {
     function Grid(cx, cy, live_links, hints) {
         var zx = cx + 1;
@@ -377,36 +377,36 @@ var Grid = /** @class */ (function () {
         }
         return builder.build();
     }
-    return Grid;
-}());
-function solve() {
-    loop;
-    {
-        var actions = this.process();
-        if (actions.is_empty()) {
-            break;
-        }
-        for (var action in actions) {
-            action.execute();
-        }
-    }
-}
-function process() {
-    function loop_process(source, process_function) {
-        for (var value in source) {
-            source["delete"](value);
-            var result = process_function(value);
-            if (!result.is_empty()) {
-                return result;
+    Grid.prototype.solve = function () {
+        loop;
+        {
+            var actions = this.process();
+            if (actions.is_empty()) {
+                break;
+            }
+            for (var action in actions) {
+                action.execute();
             }
         }
-        return null;
-    }
-    return loop_process(this.dirty_cells, process_cell)
-        || loop_process(this.dirty_hints, process_hint)
-        || loop_process(this.dirty_links, process_link)
-        || [];
-}
+    };
+    Grid.prototype.process = function () {
+        function loop_process(source, process_function) {
+            for (var value in source) {
+                source["delete"](value);
+                var result = process_function(value);
+                if (!result.is_empty()) {
+                    return result;
+                }
+            }
+            return null;
+        }
+        return loop_process(this.dirty_cells, process_cell)
+            || loop_process(this.dirty_hints, process_hint)
+            || loop_process(this.dirty_links, process_link)
+            || [];
+    };
+    return Grid;
+}());
 function get_cells(cells, cell_ids) {
     var result = (new Array(), new Array(), new Array());
     for (var cell_id in cell_ids) {

@@ -22,19 +22,19 @@ class Pos {
         this.y = y;
     }
 
-    function south() : Pos {
+    south() : Pos {
         return new Pos(this.x, this.y + 1);
     }
 
-    function east() : Pos {
+    east() : Pos {
         return new Pos(this.x + 1, this.y);
     }
 
-    function north() : Pos {
+    north() : Pos {
         return new Pos(this.x, this.y - 1);
     }
 
-    function west() : Pos {
+    west() : Pos {
         return new Pos(this.x - 1, this.y);
     }
 }
@@ -64,10 +64,10 @@ class Hint {
 }
 
 class Cell {
-    id: CellId,
-    hints: Array<HintId>,
-    links: Array<LinkId>,
-    state: State,
+    id: CellId;
+    hints: Array<HintId>;
+    links: Array<LinkId>;
+    state: State;
 
     constructor(id: CellId) {
         this.id = id;
@@ -94,14 +94,14 @@ class Link {
 }
 
 interface Action {
-    function execute(grid: Grid);
+    execute(grid: Grid);
 }
 
 class SetCellState extends Action {
     cell_id: CellId;
     new_state: State;
 
-    function execute(grid: Grid) {
+    execute(grid: Grid) {
         const cell = grid.cells.get(this.cell_id);
         cell.state = this.new_state;
 
@@ -119,7 +119,7 @@ class SetLinkState extends Action {
     link_id: LinkId;
     new_state: State;
 
-    function execute(grid: Grid) {
+    execute(grid: Grid) {
         const link = grid.links.get(this.link_id);
         link.state = this.new_state;
 
@@ -137,7 +137,7 @@ class SetLinkState extends Action {
     }
 
     // For every connected live link, set its chain id to match
-    function propagate_chain_id(grid: Grid, cell: Cell, chain_id: LinkId) {
+    propagate_chain_id(grid: Grid, cell: Cell, chain_id: LinkId) {
         const [live_links, _, _] = get_links(grid.links, cell.links);
         for(const link in live_links) {
             if(link.chain_id == chain_id) {
@@ -155,7 +155,7 @@ class SetLinkState extends Action {
 }
 
 class Fail extends Action {
-    function execute() {
+    execute() {
         throw new Error("failure executed!");
     }
 }
@@ -242,7 +242,7 @@ class GridBuilder {
         };
     }
 
-    function add_cell(pos: Pos) {
+    add_cell(pos: Pos) {
         this.cells.set(pos, new Cell(pos));
         this.xmax = max(this.xmax, pos.x);
         this.ymax = max(this.ymax, pos.y);
@@ -256,7 +256,7 @@ class GridBuilder {
         this.try_connect_hint_with_cell((pos.x, South), pos);
     }
 
-    function add_link(link_id: LinkId) {
+    add_link(link_id: LinkId) {
         this.links.set(link_id, new Link(link_id));
 
         const (pos, direction) = link_id;
@@ -276,7 +276,7 @@ class GridBuilder {
         }
     }
 
-    function add_hint(hint_id: HintId, value: bigint) {
+    add_hint(hint_id: HintId, value: bigint) {
         this.hints.set(hint_id, new Hint(hint_id, value));
 
         const (index, direction) = hint_id;
@@ -300,7 +300,7 @@ class GridBuilder {
         }
     }
 
-    function try_connect_cell_with_link(cell_id: CellId, link_id: LinkId) {
+    try_connect_cell_with_link(cell_id: CellId, link_id: LinkId) {
         const cell = this.cells.get(cell_id);
         const link = this.links.get(link_id);
         if(cell && link) {
@@ -309,7 +309,7 @@ class GridBuilder {
         }
     }
 
-    function try_connect_hint_with_cell(hint_id: HintId, cell_id: CellId) {
+    try_connect_hint_with_cell(hint_id: HintId, cell_id: CellId) {
         const hint = this.hints.get(hint_id);
         const cell = this.cells.get(cell_id);
 
@@ -319,7 +319,7 @@ class GridBuilder {
         }
     }
 
-    function try_connect_hint_with_link(hint_id: HintId, link_id: LinkId) {
+    try_connect_hint_with_link(hint_id: HintId, link_id: LinkId) {
         const hint = this.hints.get(hint_id);
         const link = this.links.get(link_id);
 
@@ -329,7 +329,7 @@ class GridBuilder {
         }
     }
 
-    function build() : Grid {
+    build() : Grid {
         return {
             dirty_cells: new Set(...this.cells.keys()),
             dirty_links: new Set(...this.links.keys()),
@@ -391,7 +391,7 @@ class Grid {
         return builder.build();
     }
 
-    function solve() {
+    solve() {
         loop {
             const actions = this.process();
             if(actions.is_empty()) {
@@ -404,7 +404,7 @@ class Grid {
         }
     }
 
-    function process() : Array<Action> {
+    process() : Array<Action> {
         function loop_process(source, process_function) {
             for(const value in source) {
                 source.delete(value);
