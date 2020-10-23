@@ -3,10 +3,6 @@ function main() {
     console.log("Hello, world!");
 }
 
-class Option<T> {
-    value: T;
-}
-
 function* range( start, end, step = 1 ){
   if( end === undefined ) [start, end] = [0, start];
   for( let n = start; n <= end; n += step ) yield n;
@@ -84,14 +80,14 @@ class Cell {
 class Link {
     id: LinkId;
     chain_id: LinkId;
-    hint_id: Option<HintId>;
+    hint_id: HintId | null;
     cells: Array<CellId>;
     state: State;
 
     constructor(id: LinkId) {
         this.id = id;
         this.chain_id = id;
-        this.hint_id = Option.none();
+        this.hint_id = null;
         this.cells = new Array();
         this.state = Unknown;
     }
@@ -111,10 +107,10 @@ class SetCellState extends Action {
 
         const [_, unknown_links, _] = get_links(grid.links, cell.links);
         for(const link in unknown_links) {
-            grid.dirty_links.push(link.id);
+            grid.dirty_links.add(link.id);
         }
         for(const hint_id in cell.hints) {
-            grid.dirty_hints.push(hint_id);
+            grid.dirty_hints.add(hint_id);
         }
     }
 }
@@ -129,13 +125,13 @@ class SetLinkState extends Action {
 
         const [live_cells, unknown_cells, _] = get_cells(grid.cells, link.cells);
         for(const cell in unknown_cells) {
-            grid.dirty_cells.push(cell.id);
+            grid.dirty_cells.add(cell.id);
         }
         if(link.hint_id.is_some()) {
-            grid.dirty_hints.push(link.hint_id.unwrap());
+            grid.dirty_hints.add(link.hint_id.unwrap());
         }
         for(const cell in live_cells) {
-            grid.dirty_cells.push(cell.id);
+            grid.dirty_cells.add(cell.id);
             this.propagate_chain_id(grid, cell, link.chain_id);
         }
     }
@@ -148,8 +144,8 @@ class SetLinkState extends Action {
                 continue;
             }
             link.chain_id = chain_id;
-            grid.dirty_links.push(link.id);
-            grid.dirty_cells.push(cell.id);
+            grid.dirty_links.add(link.id);
+            grid.dirty_cells.add(cell.id);
 
             for(const neighbor_id in link.cells) {
                 propagate_chain_id(grid, grid.cells.get(neighbor_id), chain_id);
@@ -230,24 +226,24 @@ function process_cell(grid: Grid, cell: Cell) : Array<Action> {
 }
 
 class GridBuilder {
-    cells: HashMap<CellId, Cell>;
-    links: HashMap<LinkId, Link>;
-    hints: HashMap<HintId, Hint>;
+    cells: Map<CellId, Cell>;
+    links: Map<LinkId, Link>;
+    hints: Map<HintId, Hint>;
     xmax: bigint;
     ymax: bigint;
 
     constructor(xmax: bigint, ymax: bigint) {
         return {
-            cells: new HashMap(),
-            links: new HashMap(),
-            hints: new HashMap(),
+            cells: new Map(),
+            links: new Map(),
+            hints: new Map(),
             xmax,
             ymax,
         };
     }
 
     function add_cell(pos: Pos) {
-        this.cells.insert(pos, new Cell(pos));
+        this.cells.set(pos, new Cell(pos));
         this.xmax = max(this.xmax, pos.x);
         this.ymax = max(this.ymax, pos.y);
 
@@ -261,7 +257,7 @@ class GridBuilder {
     }
 
     function add_link(link_id: LinkId) {
-        this.links.insert(link_id, new Link(link_id));
+        this.links.set(link_id, new Link(link_id));
 
         const (pos, direction) = link_id;
         this.xmax = max(this.xmax, pos.x);
@@ -281,7 +277,7 @@ class GridBuilder {
     }
 
     function add_hint(hint_id: HintId, value: bigint) {
-        this.hints.insert(hint_id, new Hint(hint_id, value));
+        this.hints.set(hint_id, new Hint(hint_id, value));
 
         const (index, direction) = hint_id;
         switch(direction) {
@@ -305,51 +301,53 @@ class GridBuilder {
     }
 
     function try_connect_cell_with_link(cell_id: CellId, link_id: LinkId) {
-        if(const Some(cell) = this.cells.get_mut(cell_id)) {
-            if(const Some(link) = this.links.get_mut(link_id)) {
-                cell.links.push(link_id);
-                link.cells.push(cell_id);
-            }
+        const cell = this.cells.get(cell_id);
+        const link = this.links.get(link_id);
+        if(cell && link) {
+            cell.links.push(link_id);
+            link.cells.push(cell_id);
         }
     }
 
     function try_connect_hint_with_cell(hint_id: HintId, cell_id: CellId) {
-        if(const Some(hint) = this.hints.get_mut(hint_id)) {
-            if(const Some(cell) = this.cells.get_mut(cell_id)) {
-                hint.cells.push(cell_id);
-                cell.hints.push(hint_id);
-            }
+        const hint = this.hints.get(hint_id);
+        const cell = this.cells.get(cell_id);
+
+        if(hint && cell) {
+            hint.cells.push(cell_id);
+            cell.hints.push(hint_id);
         }
     }
 
     function try_connect_hint_with_link(hint_id: HintId, link_id: LinkId) {
-        if(const Some(hint) = this.hints.get_mut(hint_id)) {
-            if(const Some(link) = this.links.get_mut(link_id)) {
-                hint.links.push(link_id);
-                link.hint_id = Some(hint_id);
-            }
+        const hint = this.hints.get(hint_id);
+        const link = this.links.get(link_id);
+
+        if(hint && link) {
+            hint.links.push(link_id);
+            link.hint_id = hint_id;
         }
     }
 
     function build() : Grid {
         return {
-            dirty_cells: this.cells.keys(),
-            dirty_links: this.links.keys(),
-            dirty_hints: this.hints.keys(),
+            dirty_cells: new Set(...this.cells.keys()),
+            dirty_links: new Set(...this.links.keys()),
+            dirty_hints: new Set(...this.hints.keys()),
             cells: this.cells,
             hints: this.hints,
             links: this.links,
-        }
+        };
     }
 }
 
 class Grid {
-    dirty_cells: Array<CellId>;
-    dirty_links: Array<LinkId>;
-    dirty_hints: Array<HintId>;
-    cells: HashMap<CellId, Cell>;
-    hints: HashMap<HintId, Hint>;
-    links: HashMap<LinkId, Link>;
+    dirty_cells: Set<CellId>;
+    dirty_links: Set<LinkId>;
+    dirty_hints: Set<HintId>;
+    cells: Map<CellId, Cell>;
+    hints: Map<HintId, Hint>;
+    links: Map<LinkId, Link>;
 
     constructor(cx: bigint, cy: bigint, live_links: Array<(Pos, Direction)>, hints: Array<(bigint, Direction)>) {
         const zx = cx + 1;
@@ -407,63 +405,50 @@ class Grid {
     }
 
     function process() : Array<Action> {
-        while(const Some(cell_id) = this.dirty_cells.pop()) {
-            if(const Some(cell) = this.cells.get(cell_id)) {
-                const result = process_cell(cell);
+        function loop_process(source, process_function) {
+            for(const value in source) {
+                source.delete(value);
+                const result = process_function(value);
                 if(!result.is_empty()) {
                     return result;
                 }
             }
+            return null;
         }
 
-        while(const Some(hint_id) = this.dirty_hints.pop()) {
-            if(const Some(hint) = this.hints.get(hint_id)) {
-                const result = process_hint(hint);
-                if(!result.is_empty()) {
-                    return result;
-                }
-            }
-        }
-
-        while(const Some(link_id) = this.dirty_links.pop()) {
-            if(const Some(link) = this.links.get(link_id)) {
-                const result = process_link(link);
-                if(!result.is_empty()) {
-                    return result;
-                }
-            }
-        }
-
-        return [];
+        return loop_process(this.dirty_cells, process_cell)
+          || loop_process(this.dirty_hints, process_hint)
+          || loop_process(this.dirty_links, process_link)
+          || [];
     }
 }
 
-function get_cells(cells: HashMap<CellId, Cell>, cell_ids: Array<CellId>) : [Array<Cell>, Array<Cell>, Array<Cell>] {
+function get_cells(cells: Map<CellId, Cell>, cell_ids: Array<CellId>) : [Array<Cell>, Array<Cell>, Array<Cell>] {
     const result = (new Array(), new Array(), new Array());
 
     for(const cell_id in cell_ids) {
-        if(const Some(cell) = cells.get(cell_id)) {
-            switch(cell.state) {
-                case Live:    result[0].push(cell); break;
-                case Unknown: result[1].push(cell); break;
-                case Dead:    result[2].push(cell); break;
-            }
+        const cell = cells.get(cell_id);
+
+        switch(cell.state) {
+            case Live:    result[0].push(cell); break;
+            case Unknown: result[1].push(cell); break;
+            case Dead:    result[2].push(cell); break;
         }
     }
 
     return result;
 }
 
-function get_links(links: HashMap<LinkId, Link>, link_ids: Array<LinkId>) : [Array<Link>, Array<Link>, Array<Link>] {
+function get_links(links: Map<LinkId, Link>, link_ids: Array<LinkId>) : [Array<Link>, Array<Link>, Array<Link>] {
     const result = (new Array(), new Array(), new Array());
 
     for(const link_id in link_ids) {
-        if(const Some(link) = links.get(link_id)) {
-            switch(link.state) {
-                case Live:    result[0].push(link); break;
-                case Unknown: result[1].push(link); break;
-                case Dead:    result[2].push(link); break;
-            }
+        const link = links.get(link_id);
+
+        switch(link.state) {
+            case Live:    result[0].push(link); break;
+            case Unknown: result[1].push(link); break;
+            case Dead:    result[2].push(link); break;
         }
     }
 
