@@ -185,10 +185,10 @@ function process_hint(grid: Grid, hint: Hint) : Array<Action> {
 
 function process_link(grid: Grid, link: Link) : Array<Action> {
     const [live_cells, _, _] = get_cells(grid.cells, link.cells);
-    const neighbor_link_ids = live_cells.flat_map(|cell| cell.links.clone());
+    const neighbor_link_ids = live_cells.flat_map(cell => cell.links);
     const [live_neighbor_links, _, _] = get_links(grid.links, neighbor_link_ids);
 
-    if(live_neighbor_links.windows(2).any(|w| w[0].chain_id == w[1].chain_id)) {
+    if(live_neighbor_links.windows(2).some(w => w[0].chain_id == w[1].chain_id)) {
         return [SetLinkState(link.id, Dead)]; // closed loop rule
     }
 
@@ -259,7 +259,7 @@ class GridBuilder {
     add_link(link_id: LinkId) {
         this.links.set(link_id, new Link(link_id));
 
-        const (pos, direction) = link_id;
+        const [pos, direction] = link_id;
         this.xmax = max(this.xmax, pos.x);
         this.ymax = max(this.ymax, pos.y);
 
@@ -279,7 +279,7 @@ class GridBuilder {
     add_hint(hint_id: HintId, value: bigint) {
         this.hints.set(hint_id, new Hint(hint_id, value));
 
-        const (index, direction) = hint_id;
+        const [index, direction] = hint_id;
         switch(direction) {
             case East:
                 const x = index;
@@ -392,7 +392,7 @@ class Grid {
     }
 
     solve() {
-        loop {
+        while(true) {
             const actions = this.process();
             if(actions.is_empty()) {
                 break;

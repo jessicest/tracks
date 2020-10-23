@@ -215,9 +215,9 @@ function process_hint(grid, hint) {
 }
 function process_link(grid, link) {
     var _a = get_cells(grid.cells, link.cells), live_cells = _a[0], _ = _a[1], _ = _a[2];
-    var neighbor_link_ids = live_cells.flat_map( | cell | cell.links.clone());
+    var neighbor_link_ids = live_cells.flat_map(function (cell) { return cell.links; });
     var _b = get_links(grid.links, neighbor_link_ids), live_neighbor_links = _b[0], _ = _b[1], _ = _b[2];
-    if (live_neighbor_links.windows(2).any( | w | w[0].chain_id == w[1].chain_id)) {
+    if (live_neighbor_links.windows(2).some(function (w) { return w[0].chain_id == w[1].chain_id; })) {
         return [SetLinkState(link.id, Dead)]; // closed loop rule
     }
     return [];
@@ -268,8 +268,7 @@ var GridBuilder = /** @class */ (function () {
     };
     GridBuilder.prototype.add_link = function (link_id) {
         this.links.set(link_id, new Link(link_id));
-        var ;
-        (pos, direction) = link_id;
+        var pos = link_id[0], direction = link_id[1];
         this.xmax = max(this.xmax, pos.x);
         this.ymax = max(this.ymax, pos.y);
         this.try_connect_cell_with_link(pos, link_id);
@@ -286,8 +285,7 @@ var GridBuilder = /** @class */ (function () {
     };
     GridBuilder.prototype.add_hint = function (hint_id, value) {
         this.hints.set(hint_id, new Hint(hint_id, value));
-        var ;
-        (index, direction) = hint_id;
+        var index = hint_id[0], direction = hint_id[1];
         switch (direction) {
             case East:
                 var x = index;
@@ -378,8 +376,7 @@ var Grid = /** @class */ (function () {
         return builder.build();
     }
     Grid.prototype.solve = function () {
-        loop;
-        {
+        while (true) {
             var actions = this.process();
             if (actions.is_empty()) {
                 break;
