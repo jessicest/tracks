@@ -368,9 +368,9 @@ var Grid = /** @class */ (function () {
             }
         }
         // add hints
-        for (var ; (index, hint) in hints.enumerate();) {
-            builder.add_hint((index + 1, hint[1]), hint[0]);
-        }
+        hints.forEach(function (hint, index) {
+            builder.add_hint([index + 1, hint[1]], hint[0]);
+        });
         // set some links Live as requested
         for (var link_id in live_links) {
             builder.links.get_mut(link_id).unwrap().state = Live;

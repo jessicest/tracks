@@ -379,9 +379,9 @@ class Grid {
         }
 
         // add hints
-        for(const (index, hint) in hints.enumerate()) {
-            builder.add_hint((index + 1, hint[1]), hint[0]);
-        }
+        hints.forEach((hint, index) => {
+            builder.add_hint([index + 1, hint[1]], hint[0]);
+        });
 
         // set some links Live as requested
         for(const link_id in live_links) {
