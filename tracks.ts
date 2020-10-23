@@ -268,15 +268,15 @@ class GridBuilder {
         this.ymax = max(this.ymax, pos.y);
 
         this.try_connect_cell_with_link(pos, link_id);
-        match direction {
-            East => {
+        switch(direction) {
+            case East:
                 this.try_connect_cell_with_link(pos.east(), link_id);
                 this.try_connect_hint_with_link((pos.y, East), link_id);
-            },
-            South => {
+                break;
+            case South:
                 this.try_connect_cell_with_link(pos.south(), link_id);
                 this.try_connect_hint_with_link((pos.x, South), link_id);
-            },
+                break;
         }
     }
 
@@ -284,23 +284,23 @@ class GridBuilder {
         this.hints.insert(hint_id, new Hint(hint_id, value));
 
         const (index, direction) = hint_id;
-        match direction {
-            East => {
+        switch(direction) {
+            case East:
                 const x = index;
                 for(const y in range(this.ymax + 1)) {
                     const pos = Pos { x, y };
                     this.try_connect_hint_with_cell(hint_id, pos);
                     this.try_connect_hint_with_link(hint_id, (pos, East));
                 }
-            },
-            South => {
+                break;
+            case South:
                 const y = index;
                 for(const x in range(this.xmax + 1)) {
                     const pos = Pos { x, y };
                     this.try_connect_hint_with_cell(hint_id, pos);
                     this.try_connect_hint_with_link(hint_id, (pos, South));
                 }
-            },
+                break;
         }
     }
 
@@ -382,7 +382,7 @@ class Grid {
 
         // add hints
         for(const (index, hint) in hints.enumerate()) {
-            builder.add_hint((index + 1, hint.1), hint.0);
+            builder.add_hint((index + 1, hint[1]), hint[0]);
         }
 
         // set some links Live as requested
@@ -407,7 +407,7 @@ class Grid {
     }
 
     function process() : Array<Action> {
-        while const Some(cell_id) = this.dirty_cells.pop() {
+        while(const Some(cell_id) = this.dirty_cells.pop()) {
             if(const Some(cell) = this.cells.get(cell_id)) {
                 const result = process_cell(cell);
                 if(!result.is_empty()) {
@@ -416,7 +416,7 @@ class Grid {
             }
         }
 
-        while const Some(hint_id) = this.dirty_hints.pop() {
+        while(const Some(hint_id) = this.dirty_hints.pop()) {
             if(const Some(hint) = this.hints.get(hint_id)) {
                 const result = process_hint(hint);
                 if(!result.is_empty()) {
@@ -425,7 +425,7 @@ class Grid {
             }
         }
 
-        while const Some(link_id) = this.dirty_links.pop() {
+        while(const Some(link_id) = this.dirty_links.pop()) {
             if(const Some(link) = this.links.get(link_id)) {
                 const result = process_link(link);
                 if(!result.is_empty()) {
@@ -443,13 +443,11 @@ function get_cells(cells: HashMap<CellId, Cell>, cell_ids: Array<CellId>) : [Arr
 
     for(const cell_id in cell_ids) {
         if(const Some(cell) = cells.get(cell_id)) {
-            const target = match cell.state {
-                Live => result.0,
-                Unknown => result.1,
-                Dead => result.2,
-            };
-
-            target.push(cell);
+            switch(cell.state) {
+                case Live:    result[0].push(cell); break;
+                case Unknown: result[1].push(cell); break;
+                case Dead:    result[2].push(cell); break;
+            }
         }
     }
 
@@ -461,13 +459,11 @@ function get_links(links: HashMap<LinkId, Link>, link_ids: Array<LinkId>) : [Arr
 
     for(const link_id in link_ids) {
         if(const Some(link) = links.get(link_id)) {
-            const target = match link.state {
-                Live => result.0,
-                Unknown => result.1,
-                Dead => result.2,
-            };
-
-            target.push(link);
+            switch(link.state) {
+                case Live:    result[0].push(link); break;
+                case Unknown: result[1].push(link); break;
+                case Dead:    result[2].push(link); break;
+            }
         }
     }
 

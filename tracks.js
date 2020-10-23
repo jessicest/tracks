@@ -393,9 +393,7 @@ var Grid = /** @class */ (function () {
         }
         // add hints
         for (var ; (index, hint) in hints.enumerate();) {
-            builder.add_hint((index + 1, hint), .1), hint;
-            .0;
-            ;
+            builder.add_hint((index + 1, hint[1]), hint[0]);
         }
         // set some links Live as requested
         for (var link_id in live_links) {
@@ -470,12 +468,9 @@ function get_cells(cells, cell_ids) {
         (cell) = cells.get(cell_id);
         {
             var target = match, cell, state, Live = (void 0).Live;
-            result;
-            .0,
-                function (Unknown) { return result; };
-            .1,
-                function (Dead) { return result; };
-            .2,
+            result[0],
+                function (Unknown) { return result[1]; },
+                function (Dead) { return result[2]; },
             ;
         }
         ;
@@ -491,12 +486,9 @@ function get_links(links, link_ids) {
         (link) = links.get(link_id);
         {
             var target = match, link, state, Live = (void 0).Live;
-            result;
-            .0,
-                function (Unknown) { return result; };
-            .1,
-                function (Dead) { return result; };
-            .2,
+            result[0],
+                function (Unknown) { return result[1]; },
+                function (Dead) { return result[2]; },
             ;
         }
         ;
