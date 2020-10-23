@@ -294,15 +294,15 @@ function add_hint(hint_id, value) {
         case East:
             var x = index;
             for (var y_1 in range(this.ymax + 1)) {
-                var pos = Pos, _a = void 0, x_1 = _a.x, y_2 = _a.y;
+                var pos = { x: x, y: y_1 };
                 this.try_connect_hint_with_cell(hint_id, pos);
                 this.try_connect_hint_with_link(hint_id, (pos, East));
             }
             break;
         case South:
             var y = index;
-            for (var x_2 in range(this.xmax + 1)) {
-                var pos = Pos, _b = void 0, x_3 = _b.x, y_3 = _b.y;
+            for (var x_1 in range(this.xmax + 1)) {
+                var pos = { x: x_1, y: y };
                 this.try_connect_hint_with_cell(hint_id, pos);
                 this.try_connect_hint_with_link(hint_id, (pos, South));
             }
@@ -351,18 +351,18 @@ var Grid = /** @class */ (function () {
         // add cells
         for (var y in range(1, zy)) {
             for (var x in range(1, zx)) {
-                var pos = Pos, _a = void 0, x_4 = _a.x, y_4 = _a.y;
+                var pos = { x: x, y: y };
                 builder.add_cell(pos);
             }
         }
         // add links
         for (var y in range(zy)) {
             for (var x in range(zx)) {
-                var pos = Pos, _b = void 0, x_5 = _b.x, y_5 = _b.y;
-                if (y_5 > 0) {
+                var pos = { x: x, y: y };
+                if (y > 0) {
                     builder.add_link((pos, East));
                 }
-                if (x_5 > 0) {
+                if (x > 0) {
                     builder.add_link((pos, South));
                 }
             }
@@ -373,9 +373,9 @@ var Grid = /** @class */ (function () {
         });
         // set some links Live as requested
         for (var link_id in live_links) {
-            builder.links.get_mut(link_id).unwrap().state = Live;
+            builder.links.get(link_id).state = Live;
         }
-        builder.build();
+        return builder.build();
     }
     return Grid;
 }());

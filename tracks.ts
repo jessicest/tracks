@@ -284,7 +284,7 @@ class GridBuilder {
             case East:
                 const x = index;
                 for(const y in range(this.ymax + 1)) {
-                    const pos = Pos { x, y };
+                    const pos = { x, y };
                     this.try_connect_hint_with_cell(hint_id, pos);
                     this.try_connect_hint_with_link(hint_id, (pos, East));
                 }
@@ -292,7 +292,7 @@ class GridBuilder {
             case South:
                 const y = index;
                 for(const x in range(this.xmax + 1)) {
-                    const pos = Pos { x, y };
+                    const pos = { x, y };
                     this.try_connect_hint_with_cell(hint_id, pos);
                     this.try_connect_hint_with_link(hint_id, (pos, South));
                 }
@@ -349,7 +349,7 @@ class Grid {
     hints: Map<HintId, Hint>;
     links: Map<LinkId, Link>;
 
-    constructor(cx: bigint, cy: bigint, live_links: Array<(Pos, Direction)>, hints: Array<(bigint, Direction)>) {
+    constructor(cx: bigint, cy: bigint, live_links: Array<[Pos, Direction]>, hints: Array<[bigint, Direction]>) {
         const zx = cx + 1;
         const zy = cy + 1;
 
@@ -358,7 +358,7 @@ class Grid {
         // add cells
         for(const y in range(1, zy)) {
             for(const x in range(1, zx)) {
-                const pos = Pos { x, y };
+                const pos = { x, y };
                 builder.add_cell(pos);
             }
         }
@@ -366,7 +366,7 @@ class Grid {
         // add links
         for(const y in range(zy)) {
             for(const x in range(zx)) {
-                const pos = Pos { x, y };
+                const pos = { x, y };
 
                 if(y > 0) {
                     builder.add_link((pos, East));
@@ -385,10 +385,10 @@ class Grid {
 
         // set some links Live as requested
         for(const link_id in live_links) {
-            builder.links.get_mut(link_id).unwrap().state = Live;
+            builder.links.get(link_id).state = Live;
         }
 
-        builder.build()
+        return builder.build();
     }
 
     function solve() {
