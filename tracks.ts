@@ -1,6 +1,5 @@
 
 function main() {
-    console.log("Hello, world!");
 }
 
 function* range( start, end, step = 1 ){
@@ -13,11 +12,13 @@ enum Direction {
     South,
 }
 
-class Pos {
-    x: bigint;
-    y: bigint;
+type Index = number;
 
-    constructor(x: bigint, y: bigint) {
+class Pos {
+    x: Index;
+    y: Index;
+
+    constructor(x: Index, y: Index) {
         this.x = x;
         this.y = y;
     }
@@ -39,7 +40,7 @@ class Pos {
     }
 }
 
-type HintId = [bigint, Direction];
+type HintId = [Index, Direction];
 type CellId = Pos;
 type LinkId = [Pos, Direction];
 
@@ -51,11 +52,11 @@ enum State {
 
 class Hint {
     id: HintId;
-    value: bigint;
+    value: Index;
     cells: Array<CellId>;
     links: Array<LinkId>;
 
-    constructor(id: HintId, value: bigint) {
+    constructor(id: HintId, value: Index) {
         this.id = id;
         this.value = value;
         this.cells = new Array();
@@ -73,7 +74,7 @@ class Cell {
         this.id = id;
         this.hints = new Array();
         this.links = new Array();
-        this.state = Unknown;
+        this.state = State.Unknown;
     }
 }
 
@@ -89,7 +90,7 @@ class Link {
         this.chain_id = id;
         this.hint_id = null;
         this.cells = new Array();
-        this.state = Unknown;
+        this.state = State.Unknown;
     }
 }
 
@@ -165,17 +166,17 @@ function process_hint(grid: Grid, hint: Hint) : Array<Action> {
 
     if(unknown_cells.length > 0) {
         if(live_cells.length == hint.value) {
-            return unknown_cells.map(cell => new SetCellState(cell.id, Dead));
+            return unknown_cells.map(cell => new SetCellState(cell.id, State.Dead));
         }
 
         if(live_cells.length + unknown_cells.length == hint.value) {
-            return unknown_cells.map(cell => new SetCellState(cell.id, Live));
+            return unknown_cells.map(cell => new SetCellState(cell.id, State.Live));
         }
 
         if(live_cells.length + unknown_cells.length == hint.value - 1) {
             const [live_links, unknown_links, dead_links] = get_links(grid.links, hint.links);
             if(unknown_links.length > 0) {
-                return unknown_links.map(link => new SetLinkState(link.id, Dead));
+                return unknown_links.map(link => new SetLinkState(link.id, State.Dead));
             }
         }
     }
@@ -189,7 +190,7 @@ function process_link(grid: Grid, link: Link) : Array<Action> {
     const [live_neighbor_links, _, _] = get_links(grid.links, neighbor_link_ids);
 
     if(live_neighbor_links.windows(2).some(w => w[0].chain_id == w[1].chain_id)) {
-        return [SetLinkState(link.id, Dead)]; // closed loop rule
+        return [SetLinkState(link.id, State.Dead)]; // closed loop rule
     }
 
     return [];
@@ -198,27 +199,27 @@ function process_link(grid: Grid, link: Link) : Array<Action> {
 function process_cell(grid: Grid, cell: Cell) : Array<Action> {
     const [live_links, unknown_links, dead_links] = get_links(grid.links, cell.links);
 
-    if(live_links.length == 1 && cell.state == Dead) {
+    if(live_links.length == 1 && cell.state == State.Dead) {
         return [new Fail()];
     }
 
     if(unknown_links.length > 0) {
-        if(cell.state == Dead || live_links.length == 2) {
-            return unknown_links.map(link => new SetLinkState(link.id, Dead));
+        if(cell.state == State.Dead || live_links.length == 2) {
+            return unknown_links.map(link => new SetLinkState(link.id, State.Dead));
         }
 
-        if(cell.state == Live && unknown_links.length <= 2) {
-            return unknown_links.map(link => new SetLinkState(link.id, Live));
+        if(cell.state == State.Live && unknown_links.length <= 2) {
+            return unknown_links.map(link => new SetLinkState(link.id, State.Live));
         }
     }
 
-    if(cell.state == Unknown) {
+    if(cell.state == State.Unknown) {
         if(dead_links.length >= 3) {
-            return [SetCellState(cell.id, Dead)];
+            return [SetCellState(cell.id, State.Dead)];
         }
 
         if(live_links.length > 0) {
-            return [SetCellState(cell.id, Live)];
+            return [SetCellState(cell.id, State.Live)];
         }
     }
 
@@ -229,10 +230,10 @@ class GridBuilder {
     cells: Map<CellId, Cell>;
     links: Map<LinkId, Link>;
     hints: Map<HintId, Hint>;
-    xmax: bigint;
-    ymax: bigint;
+    xmax: Index;
+    ymax: Index;
 
-    constructor(xmax: bigint, ymax: bigint) {
+    constructor(xmax: Index, ymax: Index) {
         return {
             cells: new Map(),
             links: new Map(),
@@ -247,13 +248,13 @@ class GridBuilder {
         this.xmax = max(this.xmax, pos.x);
         this.ymax = max(this.ymax, pos.y);
 
-        this.try_connect_cell_with_link(pos, (pos, East));
-        this.try_connect_cell_with_link(pos, (pos.west(), East));
-        this.try_connect_cell_with_link(pos, (pos, South));
-        this.try_connect_cell_with_link(pos, (pos.north(), South));
+        this.try_connect_cell_with_link(pos, (pos, Direction.East));
+        this.try_connect_cell_with_link(pos, (pos.west(), Direction.East));
+        this.try_connect_cell_with_link(pos, (pos, Direction.South));
+        this.try_connect_cell_with_link(pos, (pos.north(), Direction.South));
 
-        this.try_connect_hint_with_cell((pos.y, East), pos);
-        this.try_connect_hint_with_cell((pos.x, South), pos);
+        this.try_connect_hint_with_cell((pos.y, Direction.East), pos);
+        this.try_connect_hint_with_cell((pos.x, Direction.South), pos);
     }
 
     add_link(link_id: LinkId) {
@@ -265,36 +266,36 @@ class GridBuilder {
 
         this.try_connect_cell_with_link(pos, link_id);
         switch(direction) {
-            case East:
+            case Direction.East:
                 this.try_connect_cell_with_link(pos.east(), link_id);
-                this.try_connect_hint_with_link((pos.y, East), link_id);
+                this.try_connect_hint_with_link((pos.y, Direction.East), link_id);
                 break;
-            case South:
+            case Direction.South:
                 this.try_connect_cell_with_link(pos.south(), link_id);
-                this.try_connect_hint_with_link((pos.x, South), link_id);
+                this.try_connect_hint_with_link((pos.x, Direction.South), link_id);
                 break;
         }
     }
 
-    add_hint(hint_id: HintId, value: bigint) {
+    add_hint(hint_id: HintId, value: Index) {
         this.hints.set(hint_id, new Hint(hint_id, value));
 
         const [index, direction] = hint_id;
         switch(direction) {
-            case East:
+            case Direction.East:
                 const x = index;
                 for(const y in range(this.ymax + 1)) {
                     const pos = { x, y };
                     this.try_connect_hint_with_cell(hint_id, pos);
-                    this.try_connect_hint_with_link(hint_id, (pos, East));
+                    this.try_connect_hint_with_link(hint_id, (pos, Direction.East));
                 }
                 break;
-            case South:
+            case Direction.South:
                 const y = index;
                 for(const x in range(this.xmax + 1)) {
                     const pos = { x, y };
                     this.try_connect_hint_with_cell(hint_id, pos);
-                    this.try_connect_hint_with_link(hint_id, (pos, South));
+                    this.try_connect_hint_with_link(hint_id, (pos, Direction.South));
                 }
                 break;
         }
@@ -349,7 +350,7 @@ class Grid {
     hints: Map<HintId, Hint>;
     links: Map<LinkId, Link>;
 
-    constructor(cx: bigint, cy: bigint, live_links: Array<[Pos, Direction]>, hints: Array<[bigint, Direction]>) {
+    constructor(cx: Index, cy: Index, live_links: Array<[Pos, Direction]>, hints: Array<[Index, Direction]>) {
         const zx = cx + 1;
         const zy = cy + 1;
 
@@ -369,11 +370,11 @@ class Grid {
                 const pos = { x, y };
 
                 if(y > 0) {
-                    builder.add_link((pos, East));
+                    builder.add_link((pos, Direction.East));
                 }
 
                 if(x > 0) {
-                    builder.add_link((pos, South));
+                    builder.add_link((pos, Direction.South));
                 }
             }
         }
@@ -385,7 +386,7 @@ class Grid {
 
         // set some links Live as requested
         for(const link_id in live_links) {
-            builder.links.get(link_id).state = Live;
+            builder.links.get(link_id).state = State.Live;
         }
 
         return builder.build();
@@ -430,9 +431,9 @@ function get_cells(cells: Map<CellId, Cell>, cell_ids: Array<CellId>) : [Array<C
         const cell = cells.get(cell_id);
 
         switch(cell.state) {
-            case Live:    result[0].push(cell); break;
-            case Unknown: result[1].push(cell); break;
-            case Dead:    result[2].push(cell); break;
+            case State.Live:    result[0].push(cell); break;
+            case State.Unknown: result[1].push(cell); break;
+            case State.Dead:    result[2].push(cell); break;
         }
     }
 
@@ -446,9 +447,9 @@ function get_links(links: Map<LinkId, Link>, link_ids: Array<LinkId>) : [Array<L
         const link = links.get(link_id);
 
         switch(link.state) {
-            case Live:    result[0].push(link); break;
-            case Unknown: result[1].push(link); break;
-            case Dead:    result[2].push(link); break;
+            case State.Live:    result[0].push(link); break;
+            case State.Unknown: result[1].push(link); break;
+            case State.Dead:    result[2].push(link); break;
         }
     }
 
@@ -456,6 +457,7 @@ function get_links(links: Map<LinkId, Link>, link_ids: Array<LinkId>) : [Array<L
 }
 
 
+/*
 function parse(input: str) : Grid {
     // sample:
     // 4x4:hCfA,4,3,4,S4,4,4,S3,4 
@@ -487,6 +489,7 @@ function parse(input: str) : Grid {
 
     throw new Error("idk how to read existing track segments");
 }
+*/
 
 /*
 elaborate:
