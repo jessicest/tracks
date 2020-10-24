@@ -261,8 +261,8 @@ class GridBuilder {
         this.try_connect_cell_with_link(pos, [pos, Direction.South]);
         this.try_connect_cell_with_link(pos, [pos.north(), Direction.South]);
 
-        this.try_connect_hint_with_cell((pos.y, Direction.East), pos);
-        this.try_connect_hint_with_cell((pos.x, Direction.South), pos);
+        this.try_connect_hint_with_cell([pos.y, Direction.East], pos);
+        this.try_connect_hint_with_cell([pos.x, Direction.South], pos);
     }
 
     add_link(link_id: LinkId) {
@@ -339,9 +339,9 @@ class GridBuilder {
     }
 
     build() : Grid {
-        const dirty_cells = new Set(...this.cells.keys());
-        const dirty_links = new Set(...this.links.keys());
-        const dirty_hints = new Set(...this.hints.keys());
+        const dirty_cells = new Set(this.cells.keys());
+        const dirty_links = new Set(this.links.keys());
+        const dirty_hints = new Set(this.hints.keys());
         return new Grid(dirty_cells, dirty_links, dirty_hints, this.cells, this.links, this.hints);
     }
 }
