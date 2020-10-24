@@ -372,7 +372,7 @@ class Grid {
         // add cells
         for(const y in range(1, zy)) {
             for(const x in range(1, zx)) {
-                const pos = { x, y };
+                const pos = new Pos(x, y);
                 builder.add_cell(pos);
             }
         }
@@ -380,14 +380,14 @@ class Grid {
         // add links
         for(const y in range(zy)) {
             for(const x in range(zx)) {
-                const pos = { x, y };
+                const pos = new Pos(x, y);
 
                 if(y > 0) {
-                    builder.add_link((pos, Direction.East));
+                    builder.add_link([pos, Direction.East]);
                 }
 
                 if(x > 0) {
-                    builder.add_link((pos, Direction.South));
+                    builder.add_link([pos, Direction.South]);
                 }
             }
         }
@@ -408,7 +408,7 @@ class Grid {
     solve() {
         while(true) {
             const actions = this.process();
-            if(actions.is_empty()) {
+            if(!actions.length) {
                 break;
             }
 
@@ -423,7 +423,7 @@ class Grid {
             for(const value in source) {
                 source.delete(value);
                 const result = process_function(value);
-                if(!result.is_empty()) {
+                if(result.length) {
                     return result;
                 }
             }
@@ -438,7 +438,7 @@ class Grid {
 }
 
 function get_cells(cells: Map<CellId, Cell>, cell_ids: Array<CellId>) : [Array<Cell>, Array<Cell>, Array<Cell>] {
-    const result = (new Array(), new Array(), new Array());
+    const result: [Array<Cell>, Array<Cell>, Array<Cell>] = [new Array(), new Array(), new Array()];
 
     for(const cell_id in cell_ids) {
         const cell = cells.get(cell_id)!;
@@ -454,7 +454,7 @@ function get_cells(cells: Map<CellId, Cell>, cell_ids: Array<CellId>) : [Array<C
 }
 
 function get_links(links: Map<LinkId, Link>, link_ids: Array<LinkId>) : [Array<Link>, Array<Link>, Array<Link>] {
-    const result = (new Array(), new Array(), new Array());
+    const result: [Array<Link>, Array<Link>, Array<Link>] = [new Array(), new Array(), new Array()];
 
     for(const link_id in link_ids) {
         const link = links.get(link_id)!;
