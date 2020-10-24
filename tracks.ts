@@ -2,7 +2,7 @@
 function main() {
 }
 
-function* range( start, end?, step = 1 ){
+function* range( start: number, end?: number, step: number = 1 ) {
   if( end === undefined ) [start, end] = [0, start];
   for( let n = start; n <= end; n += step ) yield n;
 }
@@ -195,12 +195,15 @@ function process_hint(grid: Grid, hint: Hint) : Array<Action> {
 }
 
 function process_link(grid: Grid, link: Link) : Array<Action> {
-    const [live_cells, _unknown_cells, _dead_cells] = get_cells(grid.cells, link.cells);
-    const neighbor_link_ids = live_cells.flatMap(cell => cell.links);
-    const [live_neighbor_links, _unknown_neighbor_links, _dead_neighbor_links] = get_links(grid.links, neighbor_link_ids);
+    if(link.state == State.Unknown) {
+        const [live_cells, _unknown_cells, _dead_cells] = get_cells(grid.cells, link.cells);
+        const neighbor_link_ids = live_cells.flatMap(cell => cell.links);
+        const [live_neighbor_links, _unknown_neighbor_links, _dead_neighbor_links] = get_links(grid.links, neighbor_link_ids);
+        const neighbor_chain_ids = new Set(live_neighbor_links.map(link => link.chain_id));
 
-    if(live_neighbor_links.windows(2).some(w => w[0].chain_id == w[1].chain_id)) {
-        return [new SetLinkState(link.id, State.Dead)]; // closed loop rule
+        if(neighbor_chain_ids.size < live_neighbor_links.length) {
+            return [new SetLinkState(link.id, State.Dead)]; // closed loop rule
+        }
     }
 
     return [];
@@ -293,7 +296,7 @@ class GridBuilder {
             case Direction.East:
                 const x = index;
                 for(const y in range(this.ymax + 1)) {
-                    const pos = { x, y };
+                    const pos = new Pos(x, y);
                     this.try_connect_hint_with_cell(hint_id, pos);
                     this.try_connect_hint_with_link(hint_id, [pos, Direction.East]);
                 }
@@ -301,7 +304,7 @@ class GridBuilder {
             case Direction.South:
                 const y = index;
                 for(const x in range(this.xmax + 1)) {
-                    const pos = { x, y };
+                    const pos = new Pos(x, y);
                     this.try_connect_hint_with_cell(hint_id, pos);
                     this.try_connect_hint_with_link(hint_id, [pos, Direction.South]);
                 }
