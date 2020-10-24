@@ -2,7 +2,7 @@
 function main() {
 }
 
-function* range( start, end, step = 1 ){
+function* range( start, end?, step = 1 ){
   if( end === undefined ) [start, end] = [0, start];
   for( let n = start; n <= end; n += step ) yield n;
 }
@@ -81,7 +81,7 @@ class Cell {
 class Link {
     id: LinkId;
     chain_id: LinkId;
-    hint_id: HintId?;
+    hint_id: HintId | undefined;
     cells: Array<CellId>;
     state: State;
 
@@ -102,6 +102,11 @@ class SetCellState implements Action {
     cell_id: CellId;
     new_state: State;
 
+    constructor(cell_id: CellId, new_state: State) {
+        this.cell_id = cell_id;
+        this.new_state = new_state;
+    }
+
     execute(grid: Grid) {
         const cell = grid.cells.get(this.cell_id)!;
         cell.state = this.new_state;
@@ -120,6 +125,11 @@ class SetLinkState implements Action {
     link_id: LinkId;
     new_state: State;
 
+    constructor(link_id: LinkId, new_state: State) {
+        this.link_id = link_id;
+        this.new_state = new_state;
+    }
+
     execute(grid: Grid) {
         const link = grid.links.get(this.link_id)!;
         link.state = this.new_state;
@@ -128,8 +138,8 @@ class SetLinkState implements Action {
         for(const cell in unknown_cells) {
             grid.dirty_cells.add(cell.id);
         }
-        if(link.hint_id.is_some()) {
-            grid.dirty_hints.add(link.hint_id.unwrap());
+        if(link.hint_id) {
+            grid.dirty_hints.add(link.hint_id);
         }
         for(const cell in live_cells) {
             grid.dirty_cells.add(cell.id);
@@ -149,7 +159,7 @@ class SetLinkState implements Action {
             grid.dirty_cells.add(cell.id);
 
             for(const neighbor_id in link.cells) {
-                propagate_chain_id(grid, grid.cells.get(neighbor_id)!, chain_id);
+                this.propagate_chain_id(grid, grid.cells.get(neighbor_id)!, chain_id);
             }
         }
     }
@@ -186,11 +196,11 @@ function process_hint(grid: Grid, hint: Hint) : Array<Action> {
 
 function process_link(grid: Grid, link: Link) : Array<Action> {
     const [live_cells, _unknown_cells, _dead_cells] = get_cells(grid.cells, link.cells);
-    const neighbor_link_ids = live_cells.flat_map(cell => cell.links);
+    const neighbor_link_ids = live_cells.flatMap(cell => cell.links);
     const [live_neighbor_links, _unknown_neighbor_links, _dead_neighbor_links] = get_links(grid.links, neighbor_link_ids);
 
     if(live_neighbor_links.windows(2).some(w => w[0].chain_id == w[1].chain_id)) {
-        return [SetLinkState(link.id, State.Dead)]; // closed loop rule
+        return [new SetLinkState(link.id, State.Dead)]; // closed loop rule
     }
 
     return [];
@@ -215,11 +225,11 @@ function process_cell(grid: Grid, cell: Cell) : Array<Action> {
 
     if(cell.state == State.Unknown) {
         if(dead_links.length >= 3) {
-            return [SetCellState(cell.id, State.Dead)];
+            return [new SetCellState(cell.id, State.Dead)];
         }
 
         if(live_links.length > 0) {
-            return [SetCellState(cell.id, State.Live)];
+            return [new SetCellState(cell.id, State.Live)];
         }
     }
 
@@ -234,24 +244,22 @@ class GridBuilder {
     ymax: Index;
 
     constructor(xmax: Index, ymax: Index) {
-        return {
-            cells: new Map(),
-            links: new Map(),
-            hints: new Map(),
-            xmax,
-            ymax,
-        };
+        this.cells = new Map();
+        this.links = new Map();
+        this.hints = new Map();
+        this.xmax = xmax;
+        this.ymax = ymax;
     }
 
     add_cell(pos: Pos) {
         this.cells.set(pos, new Cell(pos));
-        this.xmax = max(this.xmax, pos.x);
-        this.ymax = max(this.ymax, pos.y);
+        this.xmax = Math.max(this.xmax, pos.x);
+        this.ymax = Math.max(this.ymax, pos.y);
 
-        this.try_connect_cell_with_link(pos, (pos, Direction.East));
-        this.try_connect_cell_with_link(pos, (pos.west(), Direction.East));
-        this.try_connect_cell_with_link(pos, (pos, Direction.South));
-        this.try_connect_cell_with_link(pos, (pos.north(), Direction.South));
+        this.try_connect_cell_with_link(pos, [pos, Direction.East]);
+        this.try_connect_cell_with_link(pos, [pos.west(), Direction.East]);
+        this.try_connect_cell_with_link(pos, [pos, Direction.South]);
+        this.try_connect_cell_with_link(pos, [pos.north(), Direction.South]);
 
         this.try_connect_hint_with_cell((pos.y, Direction.East), pos);
         this.try_connect_hint_with_cell((pos.x, Direction.South), pos);
@@ -261,18 +269,18 @@ class GridBuilder {
         this.links.set(link_id, new Link(link_id));
 
         const [pos, direction] = link_id;
-        this.xmax = max(this.xmax, pos.x);
-        this.ymax = max(this.ymax, pos.y);
+        this.xmax = Math.max(this.xmax, pos.x);
+        this.ymax = Math.max(this.ymax, pos.y);
 
         this.try_connect_cell_with_link(pos, link_id);
         switch(direction) {
             case Direction.East:
                 this.try_connect_cell_with_link(pos.east(), link_id);
-                this.try_connect_hint_with_link((pos.y, Direction.East), link_id);
+                this.try_connect_hint_with_link([pos.y, Direction.East], link_id);
                 break;
             case Direction.South:
                 this.try_connect_cell_with_link(pos.south(), link_id);
-                this.try_connect_hint_with_link((pos.x, Direction.South), link_id);
+                this.try_connect_hint_with_link([pos.x, Direction.South], link_id);
                 break;
         }
     }
@@ -287,7 +295,7 @@ class GridBuilder {
                 for(const y in range(this.ymax + 1)) {
                     const pos = { x, y };
                     this.try_connect_hint_with_cell(hint_id, pos);
-                    this.try_connect_hint_with_link(hint_id, (pos, Direction.East));
+                    this.try_connect_hint_with_link(hint_id, [pos, Direction.East]);
                 }
                 break;
             case Direction.South:
@@ -295,7 +303,7 @@ class GridBuilder {
                 for(const x in range(this.xmax + 1)) {
                     const pos = { x, y };
                     this.try_connect_hint_with_cell(hint_id, pos);
-                    this.try_connect_hint_with_link(hint_id, (pos, Direction.South));
+                    this.try_connect_hint_with_link(hint_id, [pos, Direction.South]);
                 }
                 break;
         }
@@ -331,14 +339,10 @@ class GridBuilder {
     }
 
     build() : Grid {
-        return {
-            dirty_cells: new Set(...this.cells.keys()),
-            dirty_links: new Set(...this.links.keys()),
-            dirty_hints: new Set(...this.hints.keys()),
-            cells: this.cells,
-            hints: this.hints,
-            links: this.links,
-        };
+        const dirty_cells = new Set(...this.cells.keys());
+        const dirty_links = new Set(...this.links.keys());
+        const dirty_hints = new Set(...this.hints.keys());
+        return new Grid(dirty_cells, dirty_links, dirty_hints, this.cells, this.links, this.hints);
     }
 }
 
@@ -347,10 +351,19 @@ class Grid {
     dirty_links: Set<LinkId>;
     dirty_hints: Set<HintId>;
     cells: Map<CellId, Cell>;
-    hints: Map<HintId, Hint>;
     links: Map<LinkId, Link>;
+    hints: Map<HintId, Hint>;
 
-    constructor(cx: Index, cy: Index, live_links: Array<[Pos, Direction]>, hints: Array<[Index, Direction]>) {
+    constructor(dirty_cells: Set<CellId>, dirty_links: Set<LinkId>, dirty_hints: Set<HintId>, cells: Map<CellId, Cell>, links: Map<LinkId, Link>, hints: Map<HintId, Hint>) {
+        this.dirty_cells = dirty_cells;
+        this.dirty_links = dirty_links;
+        this.dirty_hints = dirty_hints;
+        this.cells = cells;
+        this.links = links;
+        this.hints = hints;
+    }
+
+    static make_grid(cx: Index, cy: Index, live_links: Array<[Pos, Direction]>, hints: Array<[Index, Direction]>): Grid {
         const zx = cx + 1;
         const zy = cy + 1;
 
