@@ -81,14 +81,14 @@ class Cell {
 class Link {
     id: LinkId;
     chain_id: LinkId;
-    hint_id: HintId | null;
+    hint_id: HintId?;
     cells: Array<CellId>;
     state: State;
 
     constructor(id: LinkId) {
         this.id = id;
         this.chain_id = id;
-        this.hint_id = null;
+        this.hint_id = undefined;
         this.cells = new Array();
         this.state = State.Unknown;
     }
@@ -98,15 +98,15 @@ interface Action {
     execute(grid: Grid);
 }
 
-class SetCellState extends Action {
+class SetCellState implements Action {
     cell_id: CellId;
     new_state: State;
 
     execute(grid: Grid) {
-        const cell = grid.cells.get(this.cell_id);
+        const cell = grid.cells.get(this.cell_id)!;
         cell.state = this.new_state;
 
-        const [_, unknown_links, _] = get_links(grid.links, cell.links);
+        const [_live_links, unknown_links, _dead_links] = get_links(grid.links, cell.links);
         for(const link in unknown_links) {
             grid.dirty_links.add(link.id);
         }
@@ -116,15 +116,15 @@ class SetCellState extends Action {
     }
 }
 
-class SetLinkState extends Action {
+class SetLinkState implements Action {
     link_id: LinkId;
     new_state: State;
 
     execute(grid: Grid) {
-        const link = grid.links.get(this.link_id);
+        const link = grid.links.get(this.link_id)!;
         link.state = this.new_state;
 
-        const [live_cells, unknown_cells, _] = get_cells(grid.cells, link.cells);
+        const [live_cells, unknown_cells, _dead_cells] = get_cells(grid.cells, link.cells);
         for(const cell in unknown_cells) {
             grid.dirty_cells.add(cell.id);
         }
@@ -139,7 +139,7 @@ class SetLinkState extends Action {
 
     // For every connected live link, set its chain id to match
     propagate_chain_id(grid: Grid, cell: Cell, chain_id: LinkId) {
-        const [live_links, _, _] = get_links(grid.links, cell.links);
+        const [live_links, _unknown_links, _dead_links] = get_links(grid.links, cell.links);
         for(const link in live_links) {
             if(link.chain_id == chain_id) {
                 continue;
@@ -149,13 +149,13 @@ class SetLinkState extends Action {
             grid.dirty_cells.add(cell.id);
 
             for(const neighbor_id in link.cells) {
-                propagate_chain_id(grid, grid.cells.get(neighbor_id), chain_id);
+                propagate_chain_id(grid, grid.cells.get(neighbor_id)!, chain_id);
             }
         }
     }
 }
 
-class Fail extends Action {
+class Fail implements Action {
     execute() {
         throw new Error("failure executed!");
     }
@@ -185,9 +185,9 @@ function process_hint(grid: Grid, hint: Hint) : Array<Action> {
 }
 
 function process_link(grid: Grid, link: Link) : Array<Action> {
-    const [live_cells, _, _] = get_cells(grid.cells, link.cells);
+    const [live_cells, _unknown_cells, _dead_cells] = get_cells(grid.cells, link.cells);
     const neighbor_link_ids = live_cells.flat_map(cell => cell.links);
-    const [live_neighbor_links, _, _] = get_links(grid.links, neighbor_link_ids);
+    const [live_neighbor_links, _unknown_neighbor_links, _dead_neighbor_links] = get_links(grid.links, neighbor_link_ids);
 
     if(live_neighbor_links.windows(2).some(w => w[0].chain_id == w[1].chain_id)) {
         return [SetLinkState(link.id, State.Dead)]; // closed loop rule
@@ -386,7 +386,7 @@ class Grid {
 
         // set some links Live as requested
         for(const link_id in live_links) {
-            builder.links.get(link_id).state = State.Live;
+            builder.links.get(link_id)!.state = State.Live;
         }
 
         return builder.build();
@@ -414,7 +414,7 @@ class Grid {
                     return result;
                 }
             }
-            return null;
+            return undefined;
         }
 
         return loop_process(this.dirty_cells, process_cell)
@@ -428,7 +428,7 @@ function get_cells(cells: Map<CellId, Cell>, cell_ids: Array<CellId>) : [Array<C
     const result = (new Array(), new Array(), new Array());
 
     for(const cell_id in cell_ids) {
-        const cell = cells.get(cell_id);
+        const cell = cells.get(cell_id)!;
 
         switch(cell.state) {
             case State.Live:    result[0].push(cell); break;
@@ -444,7 +444,7 @@ function get_links(links: Map<LinkId, Link>, link_ids: Array<LinkId>) : [Array<L
     const result = (new Array(), new Array(), new Array());
 
     for(const link_id in link_ids) {
-        const link = links.get(link_id);
+        const link = links.get(link_id)!;
 
         switch(link.state) {
             case State.Live:    result[0].push(link); break;
