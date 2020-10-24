@@ -111,11 +111,11 @@ class SetCellState implements Action {
         const cell = grid.cells.get(this.cell_id)!;
         cell.state = this.new_state;
 
-        const [_live_links, unknown_links, _dead_links] = get_links(grid.links, cell.links);
-        for(const link in unknown_links) {
+        const [_live_links, unknown_links, _dead_links]: [Array<Link>, Array<Link>, Array<Link>] = get_links(grid.links, cell.links);
+        for(const link of unknown_links) {
             grid.dirty_links.add(link.id);
         }
-        for(const hint_id in cell.hints) {
+        for(const hint_id of cell.hints) {
             grid.dirty_hints.add(hint_id);
         }
     }
@@ -135,13 +135,13 @@ class SetLinkState implements Action {
         link.state = this.new_state;
 
         const [live_cells, unknown_cells, _dead_cells] = get_cells(grid.cells, link.cells);
-        for(const cell in unknown_cells) {
+        for(const cell of unknown_cells) {
             grid.dirty_cells.add(cell.id);
         }
         if(link.hint_id) {
             grid.dirty_hints.add(link.hint_id);
         }
-        for(const cell in live_cells) {
+        for(const cell of live_cells) {
             grid.dirty_cells.add(cell.id);
             this.propagate_chain_id(grid, cell, link.chain_id);
         }
@@ -150,7 +150,7 @@ class SetLinkState implements Action {
     // For every connected live link, set its chain id to match
     propagate_chain_id(grid: Grid, cell: Cell, chain_id: LinkId) {
         const [live_links, _unknown_links, _dead_links] = get_links(grid.links, cell.links);
-        for(const link in live_links) {
+        for(const link of live_links) {
             if(link.chain_id == chain_id) {
                 continue;
             }
@@ -158,7 +158,7 @@ class SetLinkState implements Action {
             grid.dirty_links.add(link.id);
             grid.dirty_cells.add(cell.id);
 
-            for(const neighbor_id in link.cells) {
+            for(const neighbor_id of link.cells) {
                 this.propagate_chain_id(grid, grid.cells.get(neighbor_id)!, chain_id);
             }
         }
@@ -295,7 +295,7 @@ class GridBuilder {
         switch(direction) {
             case Direction.East:
                 const x = index;
-                for(const y in range(this.ymax + 1)) {
+                for(const y of range(this.ymax + 1)) {
                     const pos = new Pos(x, y);
                     this.try_connect_hint_with_cell(hint_id, pos);
                     this.try_connect_hint_with_link(hint_id, [pos, Direction.East]);
@@ -303,7 +303,7 @@ class GridBuilder {
                 break;
             case Direction.South:
                 const y = index;
-                for(const x in range(this.xmax + 1)) {
+                for(const x of range(this.xmax + 1)) {
                     const pos = new Pos(x, y);
                     this.try_connect_hint_with_cell(hint_id, pos);
                     this.try_connect_hint_with_link(hint_id, [pos, Direction.South]);
@@ -373,16 +373,16 @@ class Grid {
         const builder = new GridBuilder(cx, cy);
 
         // add cells
-        for(const y in range(1, zy)) {
-            for(const x in range(1, zx)) {
+        for(const y of range(1, zy)) {
+            for(const x of range(1, zx)) {
                 const pos = new Pos(x, y);
                 builder.add_cell(pos);
             }
         }
 
         // add links
-        for(const y in range(zy)) {
-            for(const x in range(zx)) {
+        for(const y of range(zy)) {
+            for(const x of range(zx)) {
                 const pos = new Pos(x, y);
 
                 if(y > 0) {
@@ -401,7 +401,7 @@ class Grid {
         });
 
         // set some links Live as requested
-        for(const link_id in live_links) {
+        for(const link_id of live_links) {
             builder.links.get(link_id)!.state = State.Live;
         }
 
@@ -415,7 +415,7 @@ class Grid {
                 break;
             }
 
-            for(const action in actions) {
+            for(const action of actions) {
                 action.execute();
             }
         }
@@ -423,7 +423,7 @@ class Grid {
 
     process() : Array<Action> {
         function loop_process(source, process_function) {
-            for(const value in source) {
+            for(const value of source) {
                 source.delete(value);
                 const result = process_function(value);
                 if(result.length) {
@@ -443,7 +443,7 @@ class Grid {
 function get_cells(cells: Map<CellId, Cell>, cell_ids: Array<CellId>) : [Array<Cell>, Array<Cell>, Array<Cell>] {
     const result: [Array<Cell>, Array<Cell>, Array<Cell>] = [new Array(), new Array(), new Array()];
 
-    for(const cell_id in cell_ids) {
+    for(const cell_id of cell_ids) {
         const cell = cells.get(cell_id)!;
 
         switch(cell.state) {
@@ -459,7 +459,7 @@ function get_cells(cells: Map<CellId, Cell>, cell_ids: Array<CellId>) : [Array<C
 function get_links(links: Map<LinkId, Link>, link_ids: Array<LinkId>) : [Array<Link>, Array<Link>, Array<Link>] {
     const result: [Array<Link>, Array<Link>, Array<Link>] = [new Array(), new Array(), new Array()];
 
-    for(const link_id in link_ids) {
+    for(const link_id of link_ids) {
         const link = links.get(link_id)!;
 
         switch(link.state) {
