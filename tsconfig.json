@@ -1,7 +1,12 @@
 {
     "compilerOptions": {
+        "forceConsistentCasingInFileNames": true,
         "lib": [ "ES2019" ],
-        "strictNullChecks": true,
+        "noFallthroughCasesInSwitch": true,
+        "outDir": "lib",
+        "removeComments": true,
+        "rootDir": "src",
+        "strict": true,
         "target": "ES2019"
     }
 }

@@ -1,0 +1,24 @@
+{
+  "name": "tracks",
+  "version": "1.0.0",
+  "description": "",
+  "main": "tracks.js",
+  "dependencies": {},
+  "devDependencies": {
+    "@types/node": "^14.14.2",
+    "typescript": "^4.0.3"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/corence/tracks.git"
+  },
+  "author": "Jessica Knight",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/corence/tracks/issues"
+  },
+  "homepage": "https://github.com/corence/tracks#readme"
+}

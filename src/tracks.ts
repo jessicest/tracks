@@ -1,5 +1,8 @@
 
 function main() {
+    const grid = Grid.make_grid();
+    grid.solve();
+    console.log('%O', grid);
 }
 
 function* range( start: number, end?: number, step: number = 1 ) {
@@ -408,7 +411,7 @@ class Grid {
         return builder.build();
     }
 
-    solve(grid: Grid) {
+    solve() {
         while(true) {
             const actions = this.process();
             if(!actions.length) {
@@ -416,7 +419,7 @@ class Grid {
             }
 
             for(const action of actions) {
-                action.execute(grid);
+                action.execute(this);
             }
         }
     }
@@ -472,40 +475,6 @@ function get_links(links: Map<LinkId, Link>, link_ids: Array<LinkId>) : [Array<L
     return result;
 }
 
-
-/*
-function parse(input: str) : Grid {
-    // sample:
-    // 4x4:hCfA,4,3,4,S4,4,4,S3,4 
-    // that's a 4x4 grid, with:
-    //   top hints 4344
-    //   side hints 4344
-    //   A in 3rd row, curving west->south
-    //   B in 4th col, curving south->north
-    //   no other tracks present
-    // 
-    // (\d+)x(\d+):(live links),(top hints with S marked),(side hints with S marked)
-    // live links seem to be 2 chars per link
-
-    // sample:
-    // 8x8:p6k9zg9a,3,3,3,5,5,5,S2,2,4,4,S2,2,4,5,5,2
-    // that's with:
-    //   top hints 33355522
-    //   side hints 44224552
-    //   A in 3rd row, curving west->north
-    //   B in 7th col, curving south->east
-    //   pos (3,4) also contains a south->east fragment
-
-    // sample:
-    // 4x4:l6bA,2,2,4,S4,2,2,4,S4
-    // wow that's hard. live links are actually the same as in the first example
-
-    // sample:
-    // 4x4:CkAc,S4,3,3,4,S3,4,3,4
-
-    throw new Error("idk how to read existing track segments");
-}
-*/
 
 /*
 elaborate:
