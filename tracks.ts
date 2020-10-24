@@ -166,7 +166,7 @@ class SetLinkState implements Action {
 }
 
 class Fail implements Action {
-    execute() {
+    execute(grid: Grid) {
         throw new Error("failure executed!");
     }
 }
@@ -408,7 +408,7 @@ class Grid {
         return builder.build();
     }
 
-    solve() {
+    solve(grid: Grid) {
         while(true) {
             const actions = this.process();
             if(!actions.length) {
@@ -416,7 +416,7 @@ class Grid {
             }
 
             for(const action of actions) {
-                action.execute();
+                action.execute(grid);
             }
         }
     }

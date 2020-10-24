@@ -1,6 +1,7 @@
 {
     "compilerOptions": {
         "lib": [ "ES2019" ],
-        "strictNullChecks": true
+        "strictNullChecks": true,
+        "target": "ES2019"
     }
 }
