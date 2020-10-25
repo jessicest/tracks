@@ -1,7 +1,10 @@
 
+const util = require('util'); 
+
+// generates a range of numbers from start (inclusive) to end (exclusive)
 function* range( start: number, end?: number, step: number = 1 ) {
   if( end === undefined ) [start, end] = [0, start];
-  for( let n = start; n <= end; n += step ) yield n;
+  for( let n = start; n < end; n += step ) yield n;
 }
 
 enum Direction {
@@ -11,30 +14,25 @@ enum Direction {
 
 type Index = number;
 
-class Pos {
-    x: Index;
-    y: Index;
+type Pos = {
+    x: Index,
+    y: Index
+};
 
-    constructor(x: Index, y: Index) {
-        this.x = x;
-        this.y = y;
-    }
+function south(pos: Pos) : Pos {
+    return { x: pos.x, y: pos.y + 1 };
+}
 
-    south() : Pos {
-        return new Pos(this.x, this.y + 1);
-    }
+function east(pos: Pos) : Pos {
+    return { x: pos.x + 1, y: pos.y };
+}
 
-    east() : Pos {
-        return new Pos(this.x + 1, this.y);
-    }
+function north(pos: Pos) : Pos {
+    return { x: pos.x, y: pos.y - 1 };
+}
 
-    north() : Pos {
-        return new Pos(this.x, this.y - 1);
-    }
-
-    west() : Pos {
-        return new Pos(this.x - 1, this.y);
-    }
+function west(pos: Pos) : Pos {
+    return { x: pos.x - 1, y: pos.y };
 }
 
 type HintId = [Index, Direction];
@@ -257,9 +255,9 @@ class GridBuilder {
         this.ymax = Math.max(this.ymax, pos.y);
 
         this.try_connect_cell_with_link(pos, [pos, Direction.East]);
-        this.try_connect_cell_with_link(pos, [pos.west(), Direction.East]);
+        this.try_connect_cell_with_link(pos, [west(pos), Direction.East]);
         this.try_connect_cell_with_link(pos, [pos, Direction.South]);
-        this.try_connect_cell_with_link(pos, [pos.north(), Direction.South]);
+        this.try_connect_cell_with_link(pos, [north(pos), Direction.South]);
 
         this.try_connect_hint_with_cell([pos.y, Direction.East], pos);
         this.try_connect_hint_with_cell([pos.x, Direction.South], pos);
@@ -267,6 +265,8 @@ class GridBuilder {
 
     add_link(link_id: LinkId) {
         this.links.set(link_id, new Link(link_id));
+        console.log(util.inspect([link_id, this.links.get(link_id)], { depth: 4}));
+        console.log(util.inspect(this.links.get([ { x: 1, y: 1 }, 1 ]), { depth: 4}));
 
         const [pos, direction] = link_id;
         this.xmax = Math.max(this.xmax, pos.x);
@@ -275,11 +275,11 @@ class GridBuilder {
         this.try_connect_cell_with_link(pos, link_id);
         switch(direction) {
             case Direction.East:
-                this.try_connect_cell_with_link(pos.east(), link_id);
+                this.try_connect_cell_with_link(east(pos), link_id);
                 this.try_connect_hint_with_link([pos.y, Direction.East], link_id);
                 break;
             case Direction.South:
-                this.try_connect_cell_with_link(pos.south(), link_id);
+                this.try_connect_cell_with_link(south(pos), link_id);
                 this.try_connect_hint_with_link([pos.x, Direction.South], link_id);
                 break;
         }
@@ -293,7 +293,7 @@ class GridBuilder {
             case Direction.East:
                 const x = index;
                 for(const y of range(this.ymax + 1)) {
-                    const pos = new Pos(x, y);
+                    const pos = { x, y };
                     this.try_connect_hint_with_cell(hint_id, pos);
                     this.try_connect_hint_with_link(hint_id, [pos, Direction.East]);
                 }
@@ -301,7 +301,7 @@ class GridBuilder {
             case Direction.South:
                 const y = index;
                 for(const x of range(this.xmax + 1)) {
-                    const pos = new Pos(x, y);
+                    const pos = { x, y };
                     this.try_connect_hint_with_cell(hint_id, pos);
                     this.try_connect_hint_with_link(hint_id, [pos, Direction.South]);
                 }
@@ -403,24 +403,21 @@ function make_grid(cx: Index, cy: Index, live_links: Array<[Pos, Direction]>, hi
     const builder = new GridBuilder(cx, cy);
 
     // add cells
-    for(const y of range(1, cy)) {
-        for(const x of range(1, cx)) {
-            const pos = new Pos(x, y);
-            builder.add_cell(pos);
+    for(const y of range(1, zy)) {
+        for(const x of range(1, zx)) {
+            builder.add_cell({ x, y });
         }
     }
 
     // add links
     for(const y of range(zy)) {
         for(const x of range(zx)) {
-            const pos = new Pos(x, y);
-
             if(y > 0) {
-                builder.add_link([pos, Direction.East]);
+                builder.add_link([{ x, y }, Direction.East]);
             }
 
             if(x > 0) {
-                builder.add_link([pos, Direction.South]);
+                builder.add_link([{ x, y }, Direction.South]);
             }
         }
     }
@@ -435,10 +432,18 @@ function make_grid(cx: Index, cy: Index, live_links: Array<[Pos, Direction]>, hi
         builder.add_hint([index + 1, Direction.East], hint);
     });
 
-    console.log('%O', builder);
+    //console.log('%O', builder);
+    //console.log(JSON.stringify(builder, null, 4));
+    console.log('----');
+    console.log(util.inspect(builder, { depth: 4 }));
+    console.log('----');
+    console.log(util.inspect(builder.links.keys(), { depth: 4 }));
+    console.log('----');
 
     // set some links Live as requested
     for(const link_id of live_links) {
+        console.log(util.inspect(link_id));
+        console.log(util.inspect(builder.links.get([ { x: 1, y: 1 }, 1 ]), { depth: 4}));
         builder.links.get(link_id)!.state = State.Live;
     }
 
@@ -505,10 +510,10 @@ function main() {
     console.log("omg\n");
     //static make_grid(cx: Index, cy: Index, live_links: Array<[Pos, Direction]>, hints: Array<[Index, Direction]>): Grid {
     const grid = make_grid(4, 4, [
-            [new Pos(1, 1), Direction.South],
-            [new Pos(0, 2), Direction.East],
-            [new Pos(1, 4), Direction.East],
-            [new Pos(2, 4), Direction.South]
+            [{ x: 1, y: 1 }, Direction.South],
+            [{ x: 0, y: 2 }, Direction.East],
+            [{ x: 1, y: 4 }, Direction.East],
+            [{ x: 2, y: 4 }, Direction.South]
         ],
         [4,3,3,2],
         [4,3,3,2]
