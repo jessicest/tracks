@@ -127,6 +127,7 @@ class SetCellState implements Action {
         for(const hint of this.cell.hints) {
             grid.dirty_hints.add(hint);
         }
+        grid.dirty_cells.add(this.cell);
     }
 }
 
@@ -156,6 +157,7 @@ class SetLinkState implements Action {
             grid.dirty_cells.add(cell);
             this.propagate_chain_id(grid, cell, this.link.chain_id);
         }
+        grid.dirty_links.add(this.link);
     }
 
     // For every connected live link, set its chain id to match
@@ -413,8 +415,9 @@ class Grid {
             return undefined;
         }
 
-        return loop_process(this.dirty_cells, process_cell)
+        return undefined
           || loop_process(this.dirty_hints, process_hint)
+          || loop_process(this.dirty_cells, process_cell)
           || loop_process(this.dirty_links, process_link)
           || [];
     }
@@ -460,6 +463,13 @@ function make_grid(cx: Index, cy: Index, live_links: Array<LinkId>, hints_north_
     // set some links Live as requested
     for(const link_id of live_links) {
         builder.links.get(JSON.stringify(link_id))!.state = State.Live;
+    }
+
+    // mark all other edge links as Dead
+    for(const link of builder.links.values()) {
+        if(link.state == State.Unknown && link.cells.length == 1) {
+            link.state = State.Dead;
+        }
     }
 
     return builder.build();
