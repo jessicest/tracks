@@ -1,6 +1,15 @@
 
 function main() {
-    const grid = Grid.make_grid();
+    //static make_grid(cx: Index, cy: Index, live_links: Array<[Pos, Direction]>, hints: Array<[Index, Direction]>): Grid {
+    const grid = Grid.make_grid(4, 4, [
+            [new Pos(1, 1), Direction.South],
+            [new Pos(0, 2), Direction.East],
+            [new Pos(1, 4), Direction.East],
+            [new Pos(2, 4), Direction.South]
+        ],
+        [4,3,3,2],
+        [4,3,3,2]
+    );
     grid.solve();
     console.log('%O', grid);
 }
@@ -55,11 +64,11 @@ enum State {
 
 class Hint {
     id: HintId;
-    value: Index;
+    value: number;
     cells: Array<CellId>;
     links: Array<LinkId>;
 
-    constructor(id: HintId, value: Index) {
+    constructor(id: HintId, value: number) {
         this.id = id;
         this.value = value;
         this.cells = new Array();
@@ -98,7 +107,7 @@ class Link {
 }
 
 interface Action {
-    execute(grid: Grid);
+    execute(grid: Grid): void;
 }
 
 class SetCellState implements Action {
@@ -291,7 +300,7 @@ class GridBuilder {
         }
     }
 
-    add_hint(hint_id: HintId, value: Index) {
+    add_hint(hint_id: HintId, value: number) {
         this.hints.set(hint_id, new Hint(hint_id, value));
 
         const [index, direction] = hint_id;
@@ -369,7 +378,7 @@ class Grid {
         this.hints = hints;
     }
 
-    static make_grid(cx: Index, cy: Index, live_links: Array<[Pos, Direction]>, hints: Array<[Index, Direction]>): Grid {
+    static make_grid(cx: Index, cy: Index, live_links: Array<[Pos, Direction]>, hints_north_south: Array<number>, hints_east_west: Array<number>): Grid {
         const zx = cx + 1;
         const zy = cy + 1;
 
@@ -399,8 +408,13 @@ class Grid {
         }
 
         // add hints
-        hints.forEach((hint, index) => {
-            builder.add_hint([index + 1, hint[1]], hint[0]);
+        hints_north_south.forEach((hint, index) => {
+            builder.add_hint([index + 1, Direction.South], hint);
+        });
+
+        // add hints
+        hints_east_west.forEach((hint, index) => {
+            builder.add_hint([index + 1, Direction.East], hint);
         });
 
         // set some links Live as requested
@@ -425,10 +439,11 @@ class Grid {
     }
 
     process() : Array<Action> {
-        function loop_process(source, process_function) {
+        const grid = this;
+        function loop_process(source: Set<any>, process_function: (grid: Grid, thing: any) => Array<Action>) {
             for(const value of source) {
                 source.delete(value);
-                const result = process_function(value);
+                const result = process_function(grid, value);
                 if(result.length) {
                     return result;
                 }
