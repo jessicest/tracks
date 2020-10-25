@@ -374,12 +374,12 @@ class GridBuilder {
 }
 
 class Grid {
-    dirty_cells: Map<string, CellId>;
-    dirty_links: Map<string, LinkId>;
-    dirty_hints: Map<string, HintId>;
-    cells: Map<string, Cell>;
-    links: Map<string, Link>;
-    hints: Map<string, Hint>;
+    dirty_cells: Set<Cell>;
+    dirty_links: Set<Link>;
+    dirty_hints: Set<Hint>;
+    cells: Array<Cell>;
+    links: Array<Link>;
+    hints: Array<Hint>;
 
     constructor(dirty_cells: Map<string, CellId>,
                 dirty_links: Map<string, LinkId>,
