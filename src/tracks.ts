@@ -101,16 +101,23 @@ interface Action {
     execute(grid: Grid): void;
 }
 
+function reason(label: string, id: any): string {
+    return label + ': ' + JSON.stringify(id);
+}
+
 class SetCellState implements Action {
     cell: Cell;
     new_state: State;
+    reason: string;
 
-    constructor(cell: Cell, new_state: State) {
+    constructor(cell: Cell, new_state: State, reason: string) {
         this.cell = cell;
         this.new_state = new_state;
+        this.reason = reason;
     }
 
     execute(grid: Grid) {
+        console.log('cell ' + JSON.stringify(this.cell.id) + ' -> ' + this.new_state + '; ' + this.reason);
         this.cell.state = this.new_state;
 
         const [_live_links, unknown_links, _dead_links]: [Array<Link>, Array<Link>, Array<Link>] = split_links(this.cell.links);
@@ -126,13 +133,16 @@ class SetCellState implements Action {
 class SetLinkState implements Action {
     link: Link;
     new_state: State;
+    reason: string;
 
-    constructor(link: Link, new_state: State) {
+    constructor(link: Link, new_state: State, reason: string) {
         this.link = link;
         this.new_state = new_state;
+        this.reason = reason;
     }
 
     execute(grid: Grid) {
+        console.log('link ' + JSON.stringify(this.link.id) + ' -> ' + this.new_state + '; ' + this.reason);
         this.link.state = this.new_state;
 
         const [live_cells, unknown_cells, _dead_cells] = split_cells(this.link.cells);
@@ -177,17 +187,17 @@ function process_hint(grid: Grid, hint: Hint) : Array<Action> {
 
     if(unknown_cells.length > 0) {
         if(live_cells.length == hint.value) {
-            return unknown_cells.map(cell => new SetCellState(cell, State.Dead));
+            return unknown_cells.map(cell => new SetCellState(cell, State.Dead, reason("hint erasure", hint.id)));
         }
 
         if(live_cells.length + unknown_cells.length == hint.value) {
-            return unknown_cells.map(cell => new SetCellState(cell, State.Live));
+            return unknown_cells.map(cell => new SetCellState(cell, State.Live, reason("hint completion", hint.id)));
         }
 
         if(live_cells.length + unknown_cells.length == hint.value - 1) {
             const [live_links, unknown_links, dead_links] = split_links(hint.links);
             if(unknown_links.length > 0) {
-                return unknown_links.map(link => new SetLinkState(link, State.Dead));
+                return unknown_links.map(link => new SetLinkState(link, State.Dead, reason("hint restriction", hint.id)));
             }
         }
     }
@@ -203,7 +213,7 @@ function process_link(grid: Grid, link: Link) : Array<Action> {
         const neighbor_chain_ids = new Set(live_neighbor_links.map(link => link.chain_id));
 
         if(neighbor_chain_ids.size < live_neighbor_links.length) {
-            return [new SetLinkState(link, State.Dead)]; // closed loop rule
+            return [new SetLinkState(link, State.Dead, reason("closed loop", link.id))];
         }
     }
 
@@ -213,27 +223,31 @@ function process_link(grid: Grid, link: Link) : Array<Action> {
 function process_cell(grid: Grid, cell: Cell) : Array<Action> {
     const [live_links, unknown_links, dead_links] = split_links(cell.links);
 
-    if(live_links.length == 1 && cell.state == State.Dead) {
+    if(live_links.length > 0 && cell.state == State.Dead) {
         return [new Fail()];
     }
 
     if(unknown_links.length > 0) {
-        if(cell.state == State.Dead || live_links.length == 2) {
-            return unknown_links.map(link => new SetLinkState(link, State.Dead));
+        if(cell.state == State.Dead) {
+            return unknown_links.map(link => new SetLinkState(link, State.Dead, reason("dead cell erasure", cell.id)));
         }
 
-        if(cell.state == State.Live && unknown_links.length <= 2) {
-            return unknown_links.map(link => new SetLinkState(link, State.Live));
+        if(live_links.length == 2) {
+            return unknown_links.map(link => new SetLinkState(link, State.Dead, reason("completed cell erasure", cell.id)));
+        }
+
+        if(cell.state == State.Live && unknown_links.length + live_links.length == 2) {
+            return unknown_links.map(link => new SetLinkState(link, State.Live, reason("cell completion", cell.id)));
         }
     }
 
     if(cell.state == State.Unknown) {
         if(dead_links.length >= 3) {
-            return [new SetCellState(cell, State.Dead)];
+            return [new SetCellState(cell, State.Dead, reason("cell extinguishment", cell.id))];
         }
 
         if(live_links.length > 0) {
-            return [new SetCellState(cell, State.Live)];
+            return [new SetCellState(cell, State.Live, reason("cell ignition", cell.id))];
         }
     }
 
@@ -291,20 +305,20 @@ class GridBuilder {
         this.hints.set(JSON.stringify(hint_id), new Hint(hint_id, value));
 
         switch(hint_id.direction) {
-            case Direction.East:
+            case Direction.South:
                 const x = hint_id.index;
                 for(const y of range(this.ymax + 1)) {
                     const pos = { x, y };
                     this.try_connect_hint_with_cell(hint_id, pos);
-                    this.try_connect_hint_with_link(hint_id, { pos, direction: Direction.East });
+                    this.try_connect_hint_with_link(hint_id, { pos, direction: Direction.South });
                 }
                 break;
-            case Direction.South:
+            case Direction.East:
                 const y = hint_id.index;
                 for(const x of range(this.xmax + 1)) {
                     const pos = { x, y };
                     this.try_connect_hint_with_cell(hint_id, pos);
-                    this.try_connect_hint_with_link(hint_id, { pos, direction: Direction.South });
+                    this.try_connect_hint_with_link(hint_id, { pos, direction: Direction.East });
                 }
                 break;
         }
@@ -382,6 +396,7 @@ class Grid {
             for(const action of actions) {
                 action.execute(this);
             }
+            console.log('.');
         }
     }
 
@@ -441,12 +456,6 @@ function make_grid(cx: Index, cy: Index, live_links: Array<LinkId>, hints_north_
     hints_east_west.forEach((hint, index) => {
         builder.add_hint({ index: index + 1, direction: Direction.East }, hint);
     });
-
-    console.log('----');
-    console.log(util.inspect(builder, { depth: 4 }));
-    console.log('----');
-    console.log(util.inspect(builder.links.keys(), { depth: 4 }));
-    console.log('----');
 
     // set some links Live as requested
     for(const link_id of live_links) {
@@ -508,6 +517,18 @@ other advanced rule:
  - when we can only just reach
 */
 
+function describe_grid(grid: Grid): string {
+    let output = '';
+
+    const [live_cells, unknown_cells, dead_cells] = split_cells(grid.cells);
+    output += 'cell counts: (' + live_cells.length + ', ' + unknown_cells.length + ', ' + dead_cells.length + ')\n';
+
+    const [live_links, unknown_links, dead_links] = split_links(grid.links);
+    output += 'link counts: (' + live_links.length + ', ' + unknown_links.length + ', ' + dead_links.length + ')\n';
+
+    return output;
+}
+
 function main() {
     console.log("omg\n");
     //static make_grid(cx: Index, cy: Index, live_links: Array<[Pos, Direction]>, hints: Array<[Index, Direction]>): Grid {
@@ -520,8 +541,14 @@ function main() {
         [4,3,3,2],
         [4,3,3,2]
     );
+    //console.log(util.inspect(grid, { depth: 6 }));
+    console.log(describe_grid(grid));
+
     grid.solve();
-    console.log('%O', grid);
+
+    //console.log(util.inspect(grid, { depth: 6 }));
+    console.log();
+    console.log(describe_grid(grid));
 }
 
 main();
