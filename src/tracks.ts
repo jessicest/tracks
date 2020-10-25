@@ -7,18 +7,6 @@ function* range(start: number, end?: number, step: number = 1) {
   for( let n = start; n < end; n += step ) yield n;
 }
 
-function setSet<K>(collection: Map<string, K>, entry: K) {
-    collection.set(JSON.stringify(entry), entry);
-}
-
-function mapGet<K, V>(collection: Map<string, V>, key: K): V {
-    return collection.get(JSON.stringify(key));
-}
-
-function mapSet<K, V>(collection: Map<string, V>, key: K, value: V) {
-    collection.set(JSON.stringify(key), value);
-}
-
 enum Direction {
     East,
     South,
@@ -68,8 +56,8 @@ enum State {
 class Hint {
     id: HintId;
     value: number;
-    cells: Array<CellId>;
-    links: Array<LinkId>;
+    cells: Array<Cell>;
+    links: Array<Link>;
 
     constructor(id: HintId, value: number) {
         this.id = id;
@@ -81,8 +69,8 @@ class Hint {
 
 class Cell {
     id: CellId;
-    hints: Array<HintId>;
-    links: Array<LinkId>;
+    hints: Array<Hint>;
+    links: Array<Link>;
     state: State;
 
     constructor(id: CellId) {
@@ -96,14 +84,14 @@ class Cell {
 class Link {
     id: LinkId;
     chain_id: LinkId;
-    hint_id: HintId | undefined;
-    cells: Array<CellId>;
+    hint: Hint | undefined;
+    cells: Array<Cell>;
     state: State;
 
     constructor(id: LinkId) {
         this.id = id;
         this.chain_id = id;
-        this.hint_id = undefined;
+        this.hint = undefined;
         this.cells = new Array();
         this.state = State.Unknown;
     }
@@ -114,67 +102,65 @@ interface Action {
 }
 
 class SetCellState implements Action {
-    cell_id: CellId;
+    cell: Cell;
     new_state: State;
 
-    constructor(cell_id: CellId, new_state: State) {
-        this.cell_id = cell_id;
+    constructor(cell: Cell, new_state: State) {
+        this.cell = cell;
         this.new_state = new_state;
     }
 
     execute(grid: Grid) {
-        const cell = mapGet(grid.cells, this.cell_id)!;
-        cell.state = this.new_state;
+        this.cell.state = this.new_state;
 
-        const [_live_links, unknown_links, _dead_links]: [Array<Link>, Array<Link>, Array<Link>] = get_links(grid.links, cell.links);
+        const [_live_links, unknown_links, _dead_links]: [Array<Link>, Array<Link>, Array<Link>] = split_links(this.cell.links);
         for(const link of unknown_links) {
-            setSet(grid.dirty_links, link.id);
+            grid.dirty_links.add(link);
         }
-        for(const hint_id of cell.hints) {
-            setSet(grid.dirty_hints, hint_id);
+        for(const hint of this.cell.hints) {
+            grid.dirty_hints.add(hint);
         }
     }
 }
 
 class SetLinkState implements Action {
-    link_id: LinkId;
+    link: Link;
     new_state: State;
 
-    constructor(link_id: LinkId, new_state: State) {
-        this.link_id = link_id;
+    constructor(link: Link, new_state: State) {
+        this.link = link;
         this.new_state = new_state;
     }
 
     execute(grid: Grid) {
-        const link = mapGet(grid.links, this.link_id)!;
-        link.state = this.new_state;
+        this.link.state = this.new_state;
 
-        const [live_cells, unknown_cells, _dead_cells] = get_cells(grid.cells, link.cells);
+        const [live_cells, unknown_cells, _dead_cells] = split_cells(this.link.cells);
         for(const cell of unknown_cells) {
-            setSet(grid.dirty_cells, cell.id);
+            grid.dirty_cells.add(cell);
         }
-        if(link.hint_id) {
-            setSet(grid.dirty_hints, link.hint_id);
+        if(this.link.hint) {
+            grid.dirty_hints.add(this.link.hint);
         }
         for(const cell of live_cells) {
-            setSet(grid.dirty_cells, cell.id);
-            this.propagate_chain_id(grid, cell, link.chain_id);
+            grid.dirty_cells.add(cell);
+            this.propagate_chain_id(grid, cell, this.link.chain_id);
         }
     }
 
     // For every connected live link, set its chain id to match
     propagate_chain_id(grid: Grid, cell: Cell, chain_id: LinkId) {
-        const [live_links, _unknown_links, _dead_links] = get_links(grid.links, cell.links);
+        const [live_links, _unknown_links, _dead_links] = split_links(cell.links);
         for(const link of live_links) {
             if(link.chain_id == chain_id) {
                 continue;
             }
             link.chain_id = chain_id;
-            setSet(grid.dirty_links, link.id);
-            setSet(grid.dirty_cells, cell.id);
+            grid.dirty_links.add(link);
+            grid.dirty_cells.add(cell);
 
-            for(const neighbor_id of link.cells) {
-                this.propagate_chain_id(grid, mapGet(grid.cells, neighbor_id)!, chain_id);
+            for(const neighbor of link.cells) {
+                this.propagate_chain_id(grid, neighbor, chain_id);
             }
         }
     }
@@ -187,21 +173,21 @@ class Fail implements Action {
 }
 
 function process_hint(grid: Grid, hint: Hint) : Array<Action> {
-    const [live_cells, unknown_cells, dead_cells] = get_cells(grid.cells, hint.cells);
+    const [live_cells, unknown_cells, dead_cells] = split_cells(hint.cells);
 
     if(unknown_cells.length > 0) {
         if(live_cells.length == hint.value) {
-            return unknown_cells.map(cell => new SetCellState(cell.id, State.Dead));
+            return unknown_cells.map(cell => new SetCellState(cell, State.Dead));
         }
 
         if(live_cells.length + unknown_cells.length == hint.value) {
-            return unknown_cells.map(cell => new SetCellState(cell.id, State.Live));
+            return unknown_cells.map(cell => new SetCellState(cell, State.Live));
         }
 
         if(live_cells.length + unknown_cells.length == hint.value - 1) {
-            const [live_links, unknown_links, dead_links] = get_links(grid.links, hint.links);
+            const [live_links, unknown_links, dead_links] = split_links(hint.links);
             if(unknown_links.length > 0) {
-                return unknown_links.map(link => new SetLinkState(link.id, State.Dead));
+                return unknown_links.map(link => new SetLinkState(link, State.Dead));
             }
         }
     }
@@ -211,13 +197,13 @@ function process_hint(grid: Grid, hint: Hint) : Array<Action> {
 
 function process_link(grid: Grid, link: Link) : Array<Action> {
     if(link.state == State.Unknown) {
-        const [live_cells, _unknown_cells, _dead_cells] = get_cells(grid.cells, link.cells);
-        const neighbor_link_ids = live_cells.flatMap(cell => cell.links);
-        const [live_neighbor_links, _unknown_neighbor_links, _dead_neighbor_links] = get_links(grid.links, neighbor_link_ids);
+        const [live_cells, _unknown_cells, _dead_cells] = split_cells(link.cells);
+        const neighbor_links = live_cells.flatMap(cell => cell.links);
+        const [live_neighbor_links, _unknown_neighbor_links, _dead_neighbor_links] = split_links(neighbor_links);
         const neighbor_chain_ids = new Set(live_neighbor_links.map(link => link.chain_id));
 
         if(neighbor_chain_ids.size < live_neighbor_links.length) {
-            return [new SetLinkState(link.id, State.Dead)]; // closed loop rule
+            return [new SetLinkState(link, State.Dead)]; // closed loop rule
         }
     }
 
@@ -225,7 +211,7 @@ function process_link(grid: Grid, link: Link) : Array<Action> {
 }
 
 function process_cell(grid: Grid, cell: Cell) : Array<Action> {
-    const [live_links, unknown_links, dead_links] = get_links(grid.links, cell.links);
+    const [live_links, unknown_links, dead_links] = split_links(cell.links);
 
     if(live_links.length == 1 && cell.state == State.Dead) {
         return [new Fail()];
@@ -233,21 +219,21 @@ function process_cell(grid: Grid, cell: Cell) : Array<Action> {
 
     if(unknown_links.length > 0) {
         if(cell.state == State.Dead || live_links.length == 2) {
-            return unknown_links.map(link => new SetLinkState(link.id, State.Dead));
+            return unknown_links.map(link => new SetLinkState(link, State.Dead));
         }
 
         if(cell.state == State.Live && unknown_links.length <= 2) {
-            return unknown_links.map(link => new SetLinkState(link.id, State.Live));
+            return unknown_links.map(link => new SetLinkState(link, State.Live));
         }
     }
 
     if(cell.state == State.Unknown) {
         if(dead_links.length >= 3) {
-            return [new SetCellState(cell.id, State.Dead)];
+            return [new SetCellState(cell, State.Dead)];
         }
 
         if(live_links.length > 0) {
-            return [new SetCellState(cell.id, State.Live)];
+            return [new SetCellState(cell, State.Live)];
         }
     }
 
@@ -270,7 +256,7 @@ class GridBuilder {
     }
 
     add_cell(pos: Pos) {
-        mapSet(this.cells, pos, new Cell(pos));
+        this.cells.set(JSON.stringify(pos), new Cell(pos));
         this.xmax = Math.max(this.xmax, pos.x);
         this.ymax = Math.max(this.ymax, pos.y);
 
@@ -284,10 +270,7 @@ class GridBuilder {
     }
 
     add_link(link_id: LinkId) {
-        mapSet(this.links, link_id, new Link(link_id));
-        console.log(util.inspect([link_id, mapGet(this.links, link_id)], { depth: 4}));
-        mapGet(console.log(util.inspect(this.links, { pos: { x: 1, y: 1 }, direction: 1 }), { depth: 4}));
-
+        this.links.set(JSON.stringify(link_id), new Link(link_id));
         this.xmax = Math.max(this.xmax, link_id.pos.x);
         this.ymax = Math.max(this.ymax, link_id.pos.y);
 
@@ -305,7 +288,7 @@ class GridBuilder {
     }
 
     add_hint(hint_id: HintId, value: number) {
-        mapSet(this.hints, hint_id, new Hint(hint_id, value));
+        this.hints.set(JSON.stringify(hint_id), new Hint(hint_id, value));
 
         switch(hint_id.direction) {
             case Direction.East:
@@ -334,8 +317,8 @@ class GridBuilder {
         const cell = this.cells.get(cell_key);
         const link = this.links.get(link_key);
         if(cell && link) {
-            cell.links.push(link_key);
-            link.cells.push(cell_key);
+            cell.links.push(link);
+            link.cells.push(cell);
         }
     }
 
@@ -347,8 +330,8 @@ class GridBuilder {
         const cell = this.cells.get(cell_key);
 
         if(hint && cell) {
-            hint.cells.push(cell_key);
-            cell.hints.push(hint_key);
+            hint.cells.push(cell);
+            cell.hints.push(hint);
         }
     }
 
@@ -360,16 +343,13 @@ class GridBuilder {
         const link = this.links.get(link_key);
 
         if(hint && link) {
-            hint.links.push(link_key);
-            link.hint_id = hint_id;
+            hint.links.push(link);
+            link.hint = hint;
         }
     }
 
     build() : Grid {
-        const dirty_cells = new Map(this.cells.values().map(cell => [JSON.stringify(cell.id), cell.id]));
-        const dirty_links = new Map(this.links.keys().map(link => [JSON.stringify(link.id), link.id]));
-        const dirty_hints = new Map(this.hints.keys().map(hint => [JSON.stringify(hint.id), hint.id]));
-        return new Grid(dirty_cells, dirty_links, dirty_hints, this.cells, this.links, this.hints);
+        return new Grid(Array.from(this.cells.values()), Array.from(this.links.values()), Array.from(this.hints.values()));
     }
 }
 
@@ -381,15 +361,12 @@ class Grid {
     links: Array<Link>;
     hints: Array<Hint>;
 
-    constructor(dirty_cells: Map<string, CellId>,
-                dirty_links: Map<string, LinkId>,
-                dirty_hints: Map<string, HintId>,
-                cells: Map<string, Cell>,
-                links: Map<string, Link>,
-                hints: Map<string, Hint>) {
-        this.dirty_cells = dirty_cells;
-        this.dirty_links = dirty_links;
-        this.dirty_hints = dirty_hints;
+    constructor(cells: Array<Cell>,
+                links: Array<Link>,
+                hints: Array<Hint>) {
+        this.dirty_cells = new Set(cells);
+        this.dirty_links = new Set(links);
+        this.dirty_hints = new Set(hints);
         this.cells = cells;
         this.links = links;
         this.hints = hints;
@@ -410,11 +387,10 @@ class Grid {
 
     process() : Array<Action> {
         const grid = this;
-        function loop_process(id_source: Map<string, any>, data_source: Map<string, any>, process_function: (grid: Grid, thing: any) => Array<Action>) {
-            for(const [key, value] of id_source.entries()) {
-                id_source.delete(key);
-                const data = data_source.get(key)!;
-                const result = process_function(grid, data);
+        function loop_process<T>(source: Set<T>, process_function: (grid: Grid, thing: T) => Array<Action>) {
+            for(const value of source) {
+                source.delete(value);
+                const result = process_function(grid, value);
                 if(result.length) {
                     return result;
                 }
@@ -439,7 +415,6 @@ function make_grid(cx: Index, cy: Index, live_links: Array<LinkId>, hints_north_
     for(const y of range(1, zy)) {
         for(const x of range(1, zx)) {
             builder.add_cell({ x, y });
-            console.log(JSON.stringify({ x, y }));
         }
     }
 
@@ -449,7 +424,6 @@ function make_grid(cx: Index, cy: Index, live_links: Array<LinkId>, hints_north_
             const pos = { x, y };
             if(y > 0) {
                 builder.add_link({ pos, direction: Direction.East });
-                console.log(JSON.stringify({ pos, direction: Direction.East }));
             }
 
             if(x > 0) {
@@ -461,7 +435,6 @@ function make_grid(cx: Index, cy: Index, live_links: Array<LinkId>, hints_north_
     // add hints
     hints_north_south.forEach((hint, index) => {
         builder.add_hint({ index: index + 1, direction: Direction.South }, hint);
-        console.log(JSON.stringify({ index: index + 1, direction: Direction.South }));
     });
 
     // add hints
@@ -469,8 +442,6 @@ function make_grid(cx: Index, cy: Index, live_links: Array<LinkId>, hints_north_
         builder.add_hint({ index: index + 1, direction: Direction.East }, hint);
     });
 
-    //console.log('%O', builder);
-    //console.log(JSON.stringify(builder, null, 4));
     console.log('----');
     console.log(util.inspect(builder, { depth: 4 }));
     console.log('----');
@@ -479,19 +450,16 @@ function make_grid(cx: Index, cy: Index, live_links: Array<LinkId>, hints_north_
 
     // set some links Live as requested
     for(const link_id of live_links) {
-        console.log(util.inspect(link_id));
-        mapGet(builder.links, link_id)!.state = State.Live;
+        builder.links.get(JSON.stringify(link_id))!.state = State.Live;
     }
 
     return builder.build();
 }
 
-function get_cells(cells: Map<string, Cell>, cell_ids: Array<CellId>) : [Array<Cell>, Array<Cell>, Array<Cell>] {
+function split_cells(cells: Array<Cell>) : [Array<Cell>, Array<Cell>, Array<Cell>] {
     const result: [Array<Cell>, Array<Cell>, Array<Cell>] = [new Array(), new Array(), new Array()];
 
-    for(const cell_id of cell_ids) {
-        const cell = mapGet(cells, cell_id)!;
-
+    for(const cell of cells) {
         switch(cell.state) {
             case State.Live:    result[0].push(cell); break;
             case State.Unknown: result[1].push(cell); break;
@@ -502,12 +470,10 @@ function get_cells(cells: Map<string, Cell>, cell_ids: Array<CellId>) : [Array<C
     return result;
 }
 
-function get_links(links: Map<string, Link>, link_ids: Array<LinkId>) : [Array<Link>, Array<Link>, Array<Link>] {
+function split_links(links: Array<Link>) : [Array<Link>, Array<Link>, Array<Link>] {
     const result: [Array<Link>, Array<Link>, Array<Link>] = [new Array(), new Array(), new Array()];
 
-    for(const link_id of link_ids) {
-        const link = mapGet(links, link_id)!;
-
+    for(const link of links) {
         switch(link.state) {
             case State.Live:    result[0].push(link); break;
             case State.Unknown: result[1].push(link); break;
