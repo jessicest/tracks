@@ -243,9 +243,9 @@ function process_cell(grid: Grid, cell: Cell) : Array<Action> {
 }
 
 class GridBuilder {
-    cells: Map<CellId, Cell>;
-    links: Map<LinkId, Link>;
-    hints: Map<HintId, Hint>;
+    cells: Map<string, Cell>;
+    links: Map<string, Link>;
+    hints: Map<string, Hint>;
     xmax: Index;
     ymax: Index;
 
@@ -356,11 +356,11 @@ class Grid {
     dirty_cells: Set<CellId>;
     dirty_links: Set<LinkId>;
     dirty_hints: Set<HintId>;
-    cells: Map<CellId, Cell>;
-    links: Map<LinkId, Link>;
-    hints: Map<HintId, Hint>;
+    cells: Map<string, Cell>;
+    links: Map<string, Link>;
+    hints: Map<string, Hint>;
 
-    constructor(dirty_cells: Set<CellId>, dirty_links: Set<LinkId>, dirty_hints: Set<HintId>, cells: Map<CellId, Cell>, links: Map<LinkId, Link>, hints: Map<HintId, Hint>) {
+    constructor(dirty_cells: Set<CellId>, dirty_links: Set<LinkId>, dirty_hints: Set<HintId>, cells: Map<string, Cell>, links: Map<string, Link>, hints: Map<string, Hint>) {
         this.dirty_cells = dirty_cells;
         this.dirty_links = dirty_links;
         this.dirty_hints = dirty_hints;
@@ -457,7 +457,7 @@ function make_grid(cx: Index, cy: Index, live_links: Array<LinkId>, hints_north_
     return builder.build();
 }
 
-function get_cells(cells: Map<CellId, Cell>, cell_ids: Array<CellId>) : [Array<Cell>, Array<Cell>, Array<Cell>] {
+function get_cells(cells: Map<string, Cell>, cell_ids: Array<CellId>) : [Array<Cell>, Array<Cell>, Array<Cell>] {
     const result: [Array<Cell>, Array<Cell>, Array<Cell>] = [new Array(), new Array(), new Array()];
 
     for(const cell_id of cell_ids) {
@@ -473,7 +473,7 @@ function get_cells(cells: Map<CellId, Cell>, cell_ids: Array<CellId>) : [Array<C
     return result;
 }
 
-function get_links(links: Map<LinkId, Link>, link_ids: Array<LinkId>) : [Array<Link>, Array<Link>, Array<Link>] {
+function get_links(links: Map<string, Link>, link_ids: Array<LinkId>) : [Array<Link>, Array<Link>, Array<Link>] {
     const result: [Array<Link>, Array<Link>, Array<Link>] = [new Array(), new Array(), new Array()];
 
     for(const link_id of link_ids) {
