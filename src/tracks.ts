@@ -1,19 +1,4 @@
 
-function main() {
-    //static make_grid(cx: Index, cy: Index, live_links: Array<[Pos, Direction]>, hints: Array<[Index, Direction]>): Grid {
-    const grid = Grid.make_grid(4, 4, [
-            [new Pos(1, 1), Direction.South],
-            [new Pos(0, 2), Direction.East],
-            [new Pos(1, 4), Direction.East],
-            [new Pos(2, 4), Direction.South]
-        ],
-        [4,3,3,2],
-        [4,3,3,2]
-    );
-    grid.solve();
-    console.log('%O', grid);
-}
-
 function* range( start: number, end?: number, step: number = 1 ) {
   if( end === undefined ) [start, end] = [0, start];
   for( let n = start; n <= end; n += step ) yield n;
@@ -378,53 +363,6 @@ class Grid {
         this.hints = hints;
     }
 
-    static make_grid(cx: Index, cy: Index, live_links: Array<[Pos, Direction]>, hints_north_south: Array<number>, hints_east_west: Array<number>): Grid {
-        const zx = cx + 1;
-        const zy = cy + 1;
-
-        const builder = new GridBuilder(cx, cy);
-
-        // add cells
-        for(const y of range(1, zy)) {
-            for(const x of range(1, zx)) {
-                const pos = new Pos(x, y);
-                builder.add_cell(pos);
-            }
-        }
-
-        // add links
-        for(const y of range(zy)) {
-            for(const x of range(zx)) {
-                const pos = new Pos(x, y);
-
-                if(y > 0) {
-                    builder.add_link([pos, Direction.East]);
-                }
-
-                if(x > 0) {
-                    builder.add_link([pos, Direction.South]);
-                }
-            }
-        }
-
-        // add hints
-        hints_north_south.forEach((hint, index) => {
-            builder.add_hint([index + 1, Direction.South], hint);
-        });
-
-        // add hints
-        hints_east_west.forEach((hint, index) => {
-            builder.add_hint([index + 1, Direction.East], hint);
-        });
-
-        // set some links Live as requested
-        for(const link_id of live_links) {
-            builder.links.get(link_id)!.state = State.Live;
-        }
-
-        return builder.build();
-    }
-
     solve() {
         while(true) {
             const actions = this.process();
@@ -456,6 +394,55 @@ class Grid {
           || loop_process(this.dirty_links, process_link)
           || [];
     }
+}
+
+function make_grid(cx: Index, cy: Index, live_links: Array<[Pos, Direction]>, hints_north_south: Array<number>, hints_east_west: Array<number>): Grid {
+    const zx = cx + 1;
+    const zy = cy + 1;
+
+    const builder = new GridBuilder(cx, cy);
+
+    // add cells
+    for(const y of range(1, cy)) {
+        for(const x of range(1, cx)) {
+            const pos = new Pos(x, y);
+            builder.add_cell(pos);
+        }
+    }
+
+    // add links
+    for(const y of range(zy)) {
+        for(const x of range(zx)) {
+            const pos = new Pos(x, y);
+
+            if(y > 0) {
+                builder.add_link([pos, Direction.East]);
+            }
+
+            if(x > 0) {
+                builder.add_link([pos, Direction.South]);
+            }
+        }
+    }
+
+    // add hints
+    hints_north_south.forEach((hint, index) => {
+        builder.add_hint([index + 1, Direction.South], hint);
+    });
+
+    // add hints
+    hints_east_west.forEach((hint, index) => {
+        builder.add_hint([index + 1, Direction.East], hint);
+    });
+
+    console.log('%O', builder);
+
+    // set some links Live as requested
+    for(const link_id of live_links) {
+        builder.links.get(link_id)!.state = State.Live;
+    }
+
+    return builder.build();
 }
 
 function get_cells(cells: Map<CellId, Cell>, cell_ids: Array<CellId>) : [Array<Cell>, Array<Cell>, Array<Cell>] {
@@ -513,3 +500,21 @@ odd/even:
 other advanced rule:
  - when we can only just reach
 */
+
+function main() {
+    console.log("omg\n");
+    //static make_grid(cx: Index, cy: Index, live_links: Array<[Pos, Direction]>, hints: Array<[Index, Direction]>): Grid {
+    const grid = make_grid(4, 4, [
+            [new Pos(1, 1), Direction.South],
+            [new Pos(0, 2), Direction.East],
+            [new Pos(1, 4), Direction.East],
+            [new Pos(2, 4), Direction.South]
+        ],
+        [4,3,3,2],
+        [4,3,3,2]
+    );
+    grid.solve();
+    console.log('%O', grid);
+}
+
+main();
