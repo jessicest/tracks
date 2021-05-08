@@ -12,14 +12,19 @@ import {
     make_grid
 } from './grid.js';
 
+import {
+    GridSolver
+} from './solver.js';
+
 declare global {
   interface Window {
-    view: View
+    view: View;
   }
 }
 
 export class View {
     grid: Grid;
+    solver: GridSolver;
     canvas: any;
     cell_radius: number;
     link_radius: number;
@@ -51,6 +56,9 @@ export class View {
             this.redraw();
             return false;
         });
+
+        this.solver = new GridSolver(this.grid);
+
         this.redraw();
     }
 
@@ -281,6 +289,13 @@ export class View {
 
         context.fillStyle = gradient;
         context.fillRect(px, py, link_diameter, cell_diameter);
+    }
+
+    solve_step() {
+        for(const action of this.solver.process()) {
+            action.execute(this.grid);
+        }
+        this.redraw();
     }
 }
 
