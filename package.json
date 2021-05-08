@@ -15,12 +15,12 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/corence/tracks.git"
+    "url": "git+https://github.com/jessicest/tracks.git"
   },
   "author": "Jessica Knight",
   "license": "ISC",
   "bugs": {
-    "url": "https://github.com/corence/tracks/issues"
+    "url": "https://github.com/jessicest/tracks/issues"
   },
-  "homepage": "https://github.com/corence/tracks#readme"
+  "homepage": "https://github.com/jessicest/tracks#readme"
 }
