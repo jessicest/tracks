@@ -8,5 +8,8 @@
         "rootDir": "src",
         "strict": true,
         "target": "ES2019"
-    }
+    },
+    "include": [
+        "src/**/*"
+    ]
 }
