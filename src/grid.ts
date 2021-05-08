@@ -5,7 +5,7 @@ function* range(start: number, end?: number, step: number = 1) {
   for( let n = start; n < end; n += step ) yield n;
 }
 
-export enum Direction {
+export const enum Direction {
     East,
     South,
 }
@@ -45,7 +45,7 @@ export type LinkId = {
     direction: Direction
 };
 
-export enum State {
+export const enum State {
     Live,
     Unknown,
     Dead,
@@ -204,11 +204,18 @@ export class GridBuilder {
     }
 
     build() : Grid {
-        return new Grid(Array.from(this.cells.values()), Array.from(this.links.values()), Array.from(this.hints.values()));
+        return new Grid(
+            this.xmax,
+            this.ymax,
+            Array.from(this.cells.values()),
+            Array.from(this.links.values()),
+            Array.from(this.hints.values()));
     }
 }
 
 export class Grid {
+    xmax: Index;
+    ymax: Index;
     dirty_cells: Set<Cell>;
     dirty_links: Set<Link>;
     dirty_hints: Set<Hint>;
@@ -216,9 +223,13 @@ export class Grid {
     links: Array<Link>;
     hints: Array<Hint>;
 
-    constructor(cells: Array<Cell>,
+    constructor(xmax: Index,
+                ymax: Index,
+                cells: Array<Cell>,
                 links: Array<Link>,
                 hints: Array<Hint>) {
+        this.xmax = xmax;
+        this.ymax = ymax;
         this.dirty_cells = new Set(cells);
         this.dirty_links = new Set(links);
         this.dirty_hints = new Set(hints);
