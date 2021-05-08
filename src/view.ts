@@ -9,9 +9,15 @@ import {
     LinkId,
     State,
     make_grid
-} from './grid';
+} from './grid.js';
 
-class View {
+declare global {
+  interface Window {
+    view: View
+  }
+}
+
+export class View {
     grid: Grid;
     canvas: any;
 
@@ -41,8 +47,12 @@ class View {
     }
 
     redraw() {
-        var context = this.canvas.getContext("2d");
+        const context = this.canvas.getContext("2d");
 
+        context.fillStyle = "#00FF00";
+        context.fillRect(0, 0, 150, 75);
+
+        /*
         // Create gradient
         var gradient = context.createRadialGradient(75, 50, 5, 90, 60, 100);
         gradient.addColorStop(0, "red");
@@ -51,5 +61,10 @@ class View {
         // Fill with gradient
         context.fillStyle = gradient;
         context.fillRect(10, 10, 150, 80);
+        window.alert('omg');
+        */
     }
 }
+
+const canvas = document.getElementById('canvas');
+window.view = new View(canvas);

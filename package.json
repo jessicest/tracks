@@ -11,7 +11,10 @@
   "scripts": {
     "build": "tsc --build",
     "clean": "tsc --build --clean",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "rebuild": "tsc --build --clean && tsc --build",
+    "run": "node lib/index.js",
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "view": "light-server -s . -p 8080 -o \\html\\index.html"
   },
   "repository": {
     "type": "git",
