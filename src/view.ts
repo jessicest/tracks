@@ -74,20 +74,22 @@ export class View {
 
         let thing = null;
         if(x_in_link && !y_in_link) {
-            thing = this.grid.links.find(link =>
-                                             link.id.pos.x == x &&
-                                             link.id.pos.y == y &&
-                                             link.id.direction == Direction.East);
+            if(x > 0 && x < this.grid.xmax) {
+                thing = this.grid.links.find(link =>
+                                                 link.id.pos.x == x &&
+                                                 link.id.pos.y == y &&
+                                                 link.id.direction == Direction.East);
+            }
         } else if(!x_in_link && y_in_link) {
-            thing = this.grid.links.find(link =>
-                                             link.id.pos.x == x &&
-                                             link.id.pos.y == y &&
-                                             link.id.direction == Direction.South);
+            if(y > 0 && y < this.grid.ymax) {
+                thing = this.grid.links.find(link =>
+                                                 link.id.pos.x == x &&
+                                                 link.id.pos.y == y &&
+                                                 link.id.direction == Direction.South);
+            }
         } else if(!x_in_link && !y_in_link) {
             thing = this.grid.cells.find(cell => cell.id.x == x && cell.id.y == y);
         }
-
-        console.log('omg (' + pixel_pos.x + ',' + pixel_pos.y + ') ' + thing + '!');
 
         if(thing != null) {
             if(left_click && thing.state == State.Live) {
@@ -109,6 +111,10 @@ export class View {
 
         const cell_diameter = this.cell_radius * 2;
         const link_diameter = this.link_radius * 2;
+
+        for(const hint of this.grid.hints) {
+            this.draw_hint(context, hint);
+        }
 
         for(const cell of this.grid.cells) {
             const x = cell.id.x;
@@ -140,6 +146,61 @@ export class View {
                 }
             }
         }
+    }
+
+    draw_hint(context: CanvasRenderingContext2D, hint: Hint) {
+        const index = hint.id.index;
+
+        const cell_diameter = this.cell_radius * 2;
+        const link_diameter = this.link_radius * 2;
+
+        const px = (hint.id.direction == Direction.East)
+            ? link_diameter
+            : index * (cell_diameter + link_diameter) + link_diameter;
+        const py = (hint.id.direction == Direction.South)
+            ? link_diameter
+            : index * (cell_diameter + link_diameter) + link_diameter;
+
+        // states of a hint can be:
+        //  - violation
+        //  - sated
+        //  - nigh
+        //  - neutral
+
+        let num_live_cells = 0;
+        let num_unknown_cells = 0;
+        let num_dead_cells = 0;
+
+        for(const cell of hint.cells) {
+            switch(cell.state) {
+                case State.Live: ++num_live_cells; break;
+                case State.Unknown: ++num_unknown_cells; break;
+                case State.Dead: ++num_dead_cells; break;
+            }
+        }
+
+        const num_cells = hint.cells.length;
+
+        let hint_color = '#000000'; // neutral
+        if((num_cells - num_dead_cells) < hint.value) {
+            hint_color = '#aa0000'; // violation
+        } else if(num_live_cells > hint.value) {
+            hint_color = '#aa0000'; // violation
+        } else if(num_live_cells == hint.value && num_unknown_cells == 0) {
+            hint_color = '#999999'; // satiated
+        //} else if(num_live_cells == hint.value - 1) {
+            //hint_color = '#44ff44'; // nigh
+        }
+
+        this.draw_hint_at(context, px, py, hint.value, hint_color);
+    }
+
+    draw_hint_at(context: CanvasRenderingContext2D, px: number, py: number, value: number, color: string) {
+        context.font = '20px Tahoma';
+        context.fillStyle = color;
+        context.textAlign = 'center';
+        context.textBaseline = 'middle';
+        context.fillText(value.toString(), px, py);
     }
 
     draw_cell(context: CanvasRenderingContext2D, px: number, py: number, state: State) {
