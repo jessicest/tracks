@@ -10,7 +10,8 @@ import {
     Pos,
     State,
     make_grid,
-    make_hints
+    make_hints,
+    parse_grid
 } from './grid.js';
 
 import {
@@ -24,8 +25,8 @@ declare global {
 }
 
 export class View {
-    grid: Grid;
-    solver: GridSolver;
+    grid!: Grid;
+    solver!: GridSolver;
     canvas: any;
     cell_radius: number;
     link_radius: number;
@@ -35,15 +36,6 @@ export class View {
         this.link_radius = 30;
 
         this.canvas = canvas;
-        this.grid = make_grid(4, 4, [
-                { pos: { x: 1, y: 1 }, direction: Direction.South },
-                { pos: { x: 0, y: 2 }, direction: Direction.East },
-                { pos: { x: 1, y: 4 }, direction: Direction.East },
-                { pos: { x: 2, y: 4 }, direction: Direction.South }
-            ],
-            make_hints([4,3,3,2], [4,3,3,2])
-        );
-
         canvas.addEventListener('click', (event: any) => {
             this.click(true, this.event_pos(event));
             event.preventDefault();
@@ -57,8 +49,19 @@ export class View {
             return false;
         });
 
-        this.solver = new GridSolver(this.grid);
+        this.set_grid(make_grid(4, 4, [
+                { pos: { x: 1, y: 1 }, direction: Direction.South },
+                { pos: { x: 0, y: 2 }, direction: Direction.East },
+                { pos: { x: 1, y: 4 }, direction: Direction.East },
+                { pos: { x: 2, y: 4 }, direction: Direction.South }
+            ],
+            make_hints([4,3,3,2], [4,3,3,2])
+        ));
+    }
 
+    set_grid(grid: Grid) {
+        this.grid = grid;
+        this.solver = new GridSolver(this.grid);
         this.redraw();
     }
 
@@ -296,6 +299,11 @@ export class View {
             action.execute(this.grid);
         }
         this.redraw();
+    }
+
+    parse() {
+        const code = (document.getElementById('code') as HTMLInputElement).value;
+        this.set_grid(parse_grid(code));
     }
 }
 

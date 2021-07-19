@@ -6,10 +6,12 @@
     </head>
     <body>
         <p>
-            <canvas width='768' height='768' id='canvas' style='outline: thick solid;'></canvas>
+            <input id='code' />
+            <button onclick='window.view.parse()'>parse</button>
+            <button onclick='window.view.solve_step()'>go</button>
         </p>
         <p>
-            <button onclick='window.view.solve_step()'>go</button>
+            <canvas width='768' height='768' id='canvas' style='outline: thick solid;'></canvas>
         </p>
     </body>
 </html>

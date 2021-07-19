@@ -1,7 +1,7 @@
 {
     "compilerOptions": {
         "forceConsistentCasingInFileNames": true,
-        "lib": [ "ES2020", "DOM" ],
+        "lib": [ "ES2019", "DOM" ],
         "noFallthroughCasesInSwitch": true,
         "outDir": "lib",
         "removeComments": true,

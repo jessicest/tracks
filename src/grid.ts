@@ -292,6 +292,8 @@ export function make_grid(cx: Index, cy: Index, live_links: Array<LinkId>, hints
 
     // set some links Live as requested
     for(const link_id of live_links) {
+        console.dir(builder.links);
+        console.dir(JSON.stringify(link_id));
         builder.links.get(JSON.stringify(link_id))!.state = State.Live;
     }
 
@@ -303,18 +305,6 @@ export function make_grid(cx: Index, cy: Index, live_links: Array<LinkId>, hints
     }
 
     return builder.build();
-}
-
-export function parse(input: string): Grid {
-    const params_matcher = /(\d+)x(\d+):([0-9a-zA-F]+)(,S?\d+)+/;
-    const params = input.match(params_matcher)!;
-
-    const cx = parseInt(params[0]);
-    const cy = parseInt(params[1]);
-    const live_links = parse_links(cx, params[2]);
-    const [exits, hints] = parse_hints(cx, params[3]);
-
-    return make_grid(cx, cy, live_links.concat(exits), hints);
 }
 
 function parse_links(cx: number, input: string) : Array<LinkId> {
@@ -335,6 +325,8 @@ function parse_links(cx: number, input: string) : Array<LinkId> {
 
     let links = new Array();
 
+    console.dir("links: " + input);
+
     let i = 0;
     for(const c of input) {
         const code = c.charCodeAt(0);
@@ -352,32 +344,29 @@ function parse_links(cx: number, input: string) : Array<LinkId> {
                 throw new Error('what');
             }
 
+            console.dir(n);
+
+            const y = i % cx;
+            const x = (i - y) / cx;
+
             if(n & 1) {
                 // East
-                const x = 1 + i / cx;
-                const y = 1 + i % cx;
-                links.push({ pos: { x, y }, direction: Direction.East });
+                links.push({ pos: { x: x + 1, y: y + 1 }, direction: Direction.East });
             }
 
             if(n & 2) {
                 // North
-                const x = 1 + i / cx;
-                const y = i % cx;
-                links.push({ pos: { x, y }, direction: Direction.South });
+                links.push({ pos: { x: x + 1, y }, direction: Direction.South });
             }
 
             if(n & 4) {
                 // West
-                const x = i / cx;
-                const y = 1 + i % cx;
-                links.push({ pos: { x, y }, direction: Direction.East });
+                links.push({ pos: { x, y: y + 1 }, direction: Direction.East });
             }
 
             if(n & 8) {
                 // South
-                const x = 1 + i / cx;
-                const y = 1 + i % cx;
-                links.push({ pos: { x, y }, direction: Direction.South });
+                links.push({ pos: { x: x + 1, y: y + 1 }, direction: Direction.South });
             }
 
             ++i;
@@ -388,25 +377,44 @@ function parse_links(cx: number, input: string) : Array<LinkId> {
 }
 
 function parse_hints(cx: number, input: string) : [Array<LinkId>, Array<HintValue>] {
-    const hints_matcher = /,(S?)(\d+)/;
+    const hints_matcher = /,(S?)(\d+)/g;
     const hints = new Array();
     const links = new Array();
 
+    console.dir("hints: " + input);
+
     let i = 0;
-    for(const hint of input.matchAll(hints_matcher)) {
+    let hint;
+
+    while(hint = hints_matcher.exec(input)) {
+        const value = parseInt(hint[2]);
         if(i < cx) {
-            if(hint[0]) {
+            if(hint[1]) {
                 links.push({ pos: { x: i + 1, y: 0 }, direction: Direction.South });
             }
-            hints.push({ index: i + 1, direction: Direction.South });
+            hints.push({ id: { index: i + 1, direction: Direction.South }, value });
         } else {
-            if(hint[0]) {
+            if(hint[1]) {
                 links.push({ pos: { x: 0, y: i + 1 - cx }, direction: Direction.East });
             }
-            hints.push({ index: i + 1 - cx, direction: Direction.East });
+            hints.push({ id: { index: i + 1 - cx, direction: Direction.East }, value });
         }
         ++i;
     }
 
     return [links, hints];
+}
+
+export function parse_grid(input: string): Grid {
+    const params_matcher = /(\d+)x(\d+):([0-9a-zA-F]+)(,S?\d+)+/;
+    const params = input.match(params_matcher)!;
+
+    const cx = parseInt(params[1]);
+    const cy = parseInt(params[2]);
+    const live_links = parse_links(cx, params[3]);
+    const [exits, hints] = parse_hints(cx, params[4]);
+
+    console.dir([cx, cy, live_links, exits, hints]);
+
+    return make_grid(cx, cy, live_links.concat(exits), hints);
 }
