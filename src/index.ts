@@ -8,7 +8,8 @@ import {
     Link,
     LinkId,
     State,
-    make_grid
+    make_grid,
+    make_hints
 } from './grid.js';
 
 import {
@@ -64,8 +65,7 @@ function main() {
             { pos: { x: 1, y: 4 }, direction: Direction.East },
             { pos: { x: 2, y: 4 }, direction: Direction.South }
         ],
-        [4,3,3,2],
-        [4,3,3,2]
+        make_hints([4,3,3,2], [4,3,3,2])
     );
     */
 
@@ -88,8 +88,7 @@ function main() {
             link(5, 4, true),
             link(7, 2, true)
         ],
-        [7,8,8,7,6,4,5,2],
-        [8,7,5,6,7,5,5,4]
+        make_hints([7,8,8,7,6,4,5,2], [8,7,5,6,7,5,5,4])
     );
 
     console.log(describe_grid(grid));

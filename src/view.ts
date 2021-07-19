@@ -9,7 +9,8 @@ import {
     LinkId,
     Pos,
     State,
-    make_grid
+    make_grid,
+    make_hints
 } from './grid.js';
 
 import {
@@ -40,8 +41,7 @@ export class View {
                 { pos: { x: 1, y: 4 }, direction: Direction.East },
                 { pos: { x: 2, y: 4 }, direction: Direction.South }
             ],
-            [4,3,3,2],
-            [4,3,3,2]
+            make_hints([4,3,3,2], [4,3,3,2])
         );
 
         canvas.addEventListener('click', (event: any) => {

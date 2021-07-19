@@ -38,6 +38,11 @@ export type HintId = {
     direction: Direction
 };
 
+export type HintValue = {
+    id: HintId,
+    value: number
+};
+
 export type CellId = Pos;
 
 export type LinkId = {
@@ -239,7 +244,21 @@ export class Grid {
     }
 }
 
-export function make_grid(cx: Index, cy: Index, live_links: Array<LinkId>, hints_north_south: Array<number>, hints_east_west: Array<number>): Grid {
+export function make_hints(hints_north_south: Array<number>, hints_east_west: Array<number>): Array<HintValue> {
+    const hints = new Array();
+
+    hints_north_south.forEach((value, index) => {
+        hints.push({ id: { index: index + 1, direction: Direction.South }, value });
+    });
+
+    hints_east_west.forEach((value, index) => {
+        hints.push({ id: { index: index + 1, direction: Direction.East }, value });
+    });
+
+    return hints;
+}
+
+export function make_grid(cx: Index, cy: Index, live_links: Array<LinkId>, hints: Array<HintValue>): Grid {
     const zx = cx + 1;
     const zy = cy + 1;
 
@@ -267,14 +286,9 @@ export function make_grid(cx: Index, cy: Index, live_links: Array<LinkId>, hints
     }
 
     // add hints
-    hints_north_south.forEach((hint, index) => {
-        builder.add_hint({ index: index + 1, direction: Direction.South }, hint);
-    });
-
-    // add hints
-    hints_east_west.forEach((hint, index) => {
-        builder.add_hint({ index: index + 1, direction: Direction.East }, hint);
-    });
+    for(const hint of hints) {
+        builder.add_hint(hint.id, hint.value);
+    }
 
     // set some links Live as requested
     for(const link_id of live_links) {
@@ -289,4 +303,110 @@ export function make_grid(cx: Index, cy: Index, live_links: Array<LinkId>, hints
     }
 
     return builder.build();
+}
+
+export function parse(input: string): Grid {
+    const params_matcher = /(\d+)x(\d+):([0-9a-zA-F]+)(,S?\d+)+/;
+    const params = input.match(params_matcher)!;
+
+    const cx = parseInt(params[0]);
+    const cy = parseInt(params[1]);
+    const live_links = parse_links(cx, params[2]);
+    const [exits, hints] = parse_hints(cx, params[3]);
+
+    return make_grid(cx, cy, live_links.concat(exits), hints);
+}
+
+function parse_links(cx: number, input: string) : Array<LinkId> {
+    /*
+        4x4:h5d9b,3,S4,3,3,4,3,S4,2
+        4x4:d5gAc,S3,3,3,4,3,S3,4,3
+        4x4:5kAc,S4,3,4,3,S3,4,4,3
+        4x4:aCj6bC,4,4,4,S4,4,4,4,S4
+
+        lowercase letter, a-z: skip that many cells
+        hex digit (0-9, A-F): the cell is encoded like so:
+
+        #define R 1
+        #define U 2
+        #define L 4
+        #define D 8
+     */
+
+    let links = new Array();
+
+    let i = 0;
+    for(const c of input) {
+        const code = c.charCodeAt(0);
+
+        if(code >= 97 && code <= 122) { // ascii 'a' to 'z'
+            i += 1 + code - 97; // skip that many cells
+        } else {
+            let n = 0;
+
+            if(code >= 48 && code <= 57) { // ascii '0' to '9'
+                n = code - 48;
+            } else if(code >= 65 && code <= 70) { // ascii 'A' to 'F'
+                n = code - 65;
+            } else {
+                throw new Error('what');
+            }
+
+            if(n & 1) {
+                // East
+                const x = 1 + i / cx;
+                const y = 1 + i % cx;
+                links.push({ pos: { x, y }, direction: Direction.East });
+            }
+
+            if(n & 2) {
+                // North
+                const x = 1 + i / cx;
+                const y = i % cx;
+                links.push({ pos: { x, y }, direction: Direction.South });
+            }
+
+            if(n & 4) {
+                // West
+                const x = i / cx;
+                const y = 1 + i % cx;
+                links.push({ pos: { x, y }, direction: Direction.East });
+            }
+
+            if(n & 8) {
+                // South
+                const x = 1 + i / cx;
+                const y = 1 + i % cx;
+                links.push({ pos: { x, y }, direction: Direction.South });
+            }
+
+            ++i;
+        }
+    }
+
+    return links;
+}
+
+function parse_hints(cx: number, input: string) : [Array<LinkId>, Array<HintValue>] {
+    const hints_matcher = /,(S?)(\d+)/;
+    const hints = new Array();
+    const links = new Array();
+
+    let i = 0;
+    for(const hint of input.matchAll(hints_matcher)) {
+        if(i < cx) {
+            if(hint[0]) {
+                links.push({ pos: { x: i + 1, y: 0 }, direction: Direction.South });
+            }
+            hints.push({ index: i + 1, direction: Direction.South });
+        } else {
+            if(hint[0]) {
+                links.push({ pos: { x: 0, y: i + 1 - cx }, direction: Direction.East });
+            }
+            hints.push({ index: i + 1 - cx, direction: Direction.East });
+        }
+        ++i;
+    }
+
+    return [links, hints];
 }

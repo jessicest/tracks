@@ -7,8 +7,7 @@ import {
     Index,
     Link,
     LinkId,
-    State,
-    make_grid
+    State
 } from './grid';
 
 interface Action {
