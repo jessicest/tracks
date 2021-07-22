@@ -325,7 +325,7 @@ function parse_links(cx: number, input: string) : Array<LinkId> {
 
     let links = new Array();
 
-    console.dir("links: " + input);
+    console.dir("links text: " + input);
 
     let i = 0;
     for(const c of input) {
@@ -339,15 +339,15 @@ function parse_links(cx: number, input: string) : Array<LinkId> {
             if(code >= 48 && code <= 57) { // ascii '0' to '9'
                 n = code - 48;
             } else if(code >= 65 && code <= 70) { // ascii 'A' to 'F'
-                n = code - 65;
+                n = 10 + code - 65;
             } else {
                 throw new Error('what');
             }
 
-            console.dir(n);
+            console.dir('cell: ' + n + ' at ' + i);
 
-            const y = i % cx;
-            const x = (i - y) / cx;
+            const x = i % cx;
+            const y = (i - x) / cx;
 
             if(n & 1) {
                 // East
@@ -373,6 +373,7 @@ function parse_links(cx: number, input: string) : Array<LinkId> {
         }
     }
 
+    console.dir('links: ' + JSON.stringify(links));
     return links;
 }
 
