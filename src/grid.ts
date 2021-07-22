@@ -292,8 +292,6 @@ export function make_grid(cx: Index, cy: Index, live_links: Array<LinkId>, hints
 
     // set some links Live as requested
     for(const link_id of live_links) {
-        console.dir(builder.links);
-        console.dir(JSON.stringify(link_id));
         builder.links.get(JSON.stringify(link_id))!.state = State.Live;
     }
 
@@ -325,8 +323,6 @@ function parse_links(cx: number, input: string) : Array<LinkId> {
 
     let links = new Array();
 
-    console.dir("links text: " + input);
-
     let i = 0;
     for(const c of input) {
         const code = c.charCodeAt(0);
@@ -343,8 +339,6 @@ function parse_links(cx: number, input: string) : Array<LinkId> {
             } else {
                 throw new Error('what');
             }
-
-            console.dir('cell: ' + n + ' at ' + i);
 
             const x = i % cx;
             const y = (i - x) / cx;
@@ -373,16 +367,12 @@ function parse_links(cx: number, input: string) : Array<LinkId> {
         }
     }
 
-    console.dir('links: ' + JSON.stringify(links));
     return links;
 }
 
-function parse_hints(cx: number, input: string) : [Array<LinkId>, Array<HintValue>] {
+function parse_hints(cx: number, input: string) : Array<HintValue> {
     const hints_matcher = /,(S?)(\d+)/g;
     const hints = new Array();
-    const links = new Array();
-
-    console.dir("hints: " + input);
 
     let i = 0;
     let hint;
@@ -390,32 +380,24 @@ function parse_hints(cx: number, input: string) : [Array<LinkId>, Array<HintValu
     while(hint = hints_matcher.exec(input)) {
         const value = parseInt(hint[2]);
         if(i < cx) {
-            if(hint[1]) {
-                links.push({ pos: { x: i + 1, y: 0 }, direction: Direction.South });
-            }
             hints.push({ id: { index: i + 1, direction: Direction.South }, value });
         } else {
-            if(hint[1]) {
-                links.push({ pos: { x: 0, y: i + 1 - cx }, direction: Direction.East });
-            }
             hints.push({ id: { index: i + 1 - cx, direction: Direction.East }, value });
         }
         ++i;
     }
 
-    return [links, hints];
+    return hints;
 }
 
 export function parse_grid(input: string): Grid {
-    const params_matcher = /(\d+)x(\d+):([0-9a-zA-F]+)(,S?\d+)+/;
+    const params_matcher = /(\d+)x(\d+):([0-9a-zA-F]+)((,S?\d+)+)/;
     const params = input.match(params_matcher)!;
 
     const cx = parseInt(params[1]);
     const cy = parseInt(params[2]);
     const live_links = parse_links(cx, params[3]);
-    const [exits, hints] = parse_hints(cx, params[4]);
+    const hints = parse_hints(cx, params[4]);
 
-    console.dir([cx, cy, live_links, exits, hints]);
-
-    return make_grid(cx, cy, live_links.concat(exits), hints);
+    return make_grid(cx, cy, live_links, hints);
 }
