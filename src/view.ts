@@ -232,7 +232,7 @@ export class View {
 
         if(state == State.Dead) {
             gradient.addColorStop(0, "#ddeeff");
-        } else if(state == State.Live || (state == State.Unknown && is_dirty)) {
+        } else if(state == State.Unknown && is_dirty) {
             gradient.addColorStop(0, "#00aa22");
         } else {
             gradient.addColorStop(0, "#8899dd");

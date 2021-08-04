@@ -40,11 +40,7 @@ class SetCellState implements Action {
         for(const hint of this.cell.hints) {
             grid.dirty_hints.add(hint.id);
         }
-        if(this.new_state == State.Unknown) {
-            grid.dirty_cells.add(this.cell.id);
-        } else {
-            grid.dirty_cells.delete(this.cell.id);
-        }
+        grid.dirty_cells.add(this.cell.id);
     }
 }
 
