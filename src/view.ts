@@ -62,8 +62,8 @@ export class View {
     }
 
     resize_canvas() {
-        this.cell_radius = 16;
-        this.link_radius = 7;
+        this.link_radius = 420 / (3 * Math.min(this.grid.xmax, this.grid.ymax) + 9); // Fit the grid within a 420px * 420px bounding box
+        this.cell_radius = this.link_radius * 2;
         const cell_diameter = this.cell_radius * 2;
         const link_diameter = this.link_radius * 2;
 
