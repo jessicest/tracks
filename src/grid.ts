@@ -356,22 +356,22 @@ function parse_links(cx: number, input: string) : Array<LinkId> {
 
             if(n & 1) {
                 // East
-                links.push({ pos: { x: x + 1, y: y + 1 }, direction: Direction.East });
+                links.push(make_link_id({ x: x + 1, y: y + 1 }, Direction.East));
             }
 
             if(n & 2) {
                 // North
-                links.push({ pos: { x: x + 1, y }, direction: Direction.South });
+                links.push(make_link_id({ x: x + 1, y }, Direction.South));
             }
 
             if(n & 4) {
                 // West
-                links.push({ pos: { x, y: y + 1 }, direction: Direction.East });
+                links.push(make_link_id({ x, y: y + 1 }, Direction.East));
             }
 
             if(n & 8) {
                 // South
-                links.push({ pos: { x: x + 1, y: y + 1 }, direction: Direction.South });
+                links.push(make_link_id({ x: x + 1, y: y + 1 }, Direction.South));
             }
 
             ++i;
