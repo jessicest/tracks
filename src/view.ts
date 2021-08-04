@@ -32,10 +32,9 @@ export class View {
     link_radius: number;
 
     constructor(canvas: any) {
-        this.cell_radius = 30;
-        this.link_radius = 30;
-
         this.canvas = canvas;
+        this.cell_radius = 1;
+        this.link_radius = 1;
         canvas.addEventListener('click', (event: any) => {
             this.click(true, this.event_pos(event));
             event.preventDefault();
@@ -57,11 +56,25 @@ export class View {
             ],
             make_hints([4,3,3,2], [4,3,3,2])
         ));
+
+        // resize the canvas to fill browser window dynamically
+        window.addEventListener('resize', this.resize_canvas, false);
+    }
+
+    resize_canvas() {
+        this.cell_radius = 16;
+        this.link_radius = 7;
+        const cell_diameter = this.cell_radius * 2;
+        const link_diameter = this.link_radius * 2;
+
+        this.canvas.width = this.grid.xmax * (cell_diameter + link_diameter) + this.link_radius * 5 + this.cell_radius * 2;
+        this.canvas.height = this.grid.ymax * (cell_diameter + link_diameter) + this.link_radius * 5 + this.cell_radius * 2;
     }
 
     set_grid(grid: Grid) {
         this.grid = grid;
         this.solver = new GridSolver(this.grid);
+        this.resize_canvas();
         this.redraw();
     }
 
@@ -131,8 +144,8 @@ export class View {
             const x = cell.id.x;
             const y = cell.id.y;
 
-            const px = x * (cell_diameter + link_diameter) + this.link_radius;
-            const py = y * (cell_diameter + link_diameter) + this.link_radius;
+            const px = x * (cell_diameter + link_diameter);
+            const py = y * (cell_diameter + link_diameter);
 
             this.draw_cell(context, px, py, cell.state);
         }
@@ -142,8 +155,8 @@ export class View {
             const y = link.id.pos.y;
             const direction = link.id.direction;
 
-            const px = x * (cell_diameter + link_diameter) + this.link_radius;
-            const py = y * (cell_diameter + link_diameter) + this.link_radius;
+            const px = x * (cell_diameter + link_diameter);
+            const py = y * (cell_diameter + link_diameter);
 
             switch(direction) {
                 case Direction.East: {
@@ -166,11 +179,11 @@ export class View {
         const link_diameter = this.link_radius * 2;
 
         const px = (hint.id.direction == Direction.East)
-            ? link_diameter
-            : index * (cell_diameter + link_diameter) + link_diameter;
+            ? this.cell_radius
+            : index * (cell_diameter + link_diameter) + this.cell_radius;
         const py = (hint.id.direction == Direction.South)
-            ? link_diameter
-            : index * (cell_diameter + link_diameter) + link_diameter;
+            ? this.cell_radius
+            : index * (cell_diameter + link_diameter) + this.cell_radius;
 
         // states of a hint can be:
         //  - violation
