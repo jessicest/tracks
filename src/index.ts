@@ -9,7 +9,8 @@ import {
     LinkId,
     State,
     make_grid,
-    make_hints
+    make_hints,
+    make_link_id
 } from './grid.js';
 
 import {
@@ -44,10 +45,10 @@ other advanced rule:
 function describe_grid(grid: Grid): string {
     let output = '';
 
-    const [live_cells, unknown_cells, dead_cells] = split_cells(grid.cells);
+    const [live_cells, unknown_cells, dead_cells] = split_cells(Array.from(grid.cells.values()));
     output += 'cell counts: (' + live_cells.length + ', ' + unknown_cells.length + ', ' + dead_cells.length + ')\n';
 
-    const [live_links, unknown_links, dead_links] = split_links(grid.links);
+    const [live_links, unknown_links, dead_links] = split_links(Array.from(grid.links.values()));
     output += 'link counts: (' + live_links.length + ', ' + unknown_links.length + ', ' + dead_links.length + ')\n';
 
     return output;
@@ -55,7 +56,7 @@ function describe_grid(grid: Grid): string {
 
 function main() {
     function link(x: Index, y: Index, south: boolean): LinkId {
-        return { pos: { x, y }, direction: south ? Direction.South : Direction.East };
+        return make_link_id({ x, y }, south ? Direction.South : Direction.East);
     }
 
     /*

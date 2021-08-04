@@ -33,21 +33,28 @@ function west(pos: Pos) : Pos {
     return { x: pos.x - 1, y: pos.y };
 }
 
-export type HintId = {
+export type CellId = string;
+
+export function make_cell_id(pos: Pos): CellId {
+    return JSON.stringify(pos);
+}
+
+export type LinkId = string;
+
+export function make_link_id(pos: Pos, direction: Direction): LinkId {
+    return JSON.stringify({ pos, direction });
+}
+
+export type HintId = string;
+
+export function make_hint_id(index: Index, direction: Direction): HintId {
+    return JSON.stringify({ index, direction });
+}
+
+export type HintContent = {
     index: Index,
-    direction: Direction
-};
-
-export type HintValue = {
-    id: HintId,
+    direction: Direction,
     value: number
-};
-
-export type CellId = Pos;
-
-export type LinkId = {
-    pos: Pos,
-    direction: Direction
 };
 
 export const enum State {
@@ -58,12 +65,16 @@ export const enum State {
 
 export class Hint {
     id: HintId;
+    index: Index;
+    direction: Direction;
     value: number;
     cells: Array<Cell>;
     links: Array<Link>;
 
-    constructor(id: HintId, value: number) {
-        this.id = id;
+    constructor(index: Index, direction: Direction, value: number) {
+        this.id = make_hint_id(index, direction);
+        this.index = index;
+        this.direction = direction;
         this.value = value;
         this.cells = new Array();
         this.links = new Array();
@@ -72,12 +83,14 @@ export class Hint {
 
 export class Cell {
     id: CellId;
+    pos: Pos;
     hints: Array<Hint>;
     links: Array<Link>;
     state: State;
 
-    constructor(id: CellId) {
-        this.id = id;
+    constructor(pos: Pos) {
+        this.id = make_cell_id(pos);
+        this.pos = pos;
         this.hints = new Array();
         this.links = new Array();
         this.state = State.Unknown;
@@ -86,14 +99,18 @@ export class Cell {
 
 export class Link {
     id: LinkId;
+    pos: Pos;
+    direction: Direction;
     chain_id: LinkId;
     hint: Hint | undefined;
     cells: Array<Cell>;
     state: State;
 
-    constructor(id: LinkId) {
-        this.id = id;
-        this.chain_id = id;
+    constructor(pos: Pos, direction: Direction) {
+        this.id = make_link_id(pos, direction);
+        this.pos = pos;
+        this.direction = direction;
+        this.chain_id = this.id;
         this.hint = undefined;
         this.cells = new Array();
         this.state = State.Unknown;
@@ -116,66 +133,66 @@ export class GridBuilder {
     }
 
     add_cell(pos: Pos) {
-        this.cells.set(JSON.stringify(pos), new Cell(pos));
+        const cell = new Cell(pos);
+        this.cells.set(cell.id, cell);
         this.xmax = Math.max(this.xmax, pos.x);
         this.ymax = Math.max(this.ymax, pos.y);
 
-        this.try_connect_cell_with_link(pos, { pos, direction: Direction.East });
-        this.try_connect_cell_with_link(pos, { pos: west(pos), direction: Direction.East });
-        this.try_connect_cell_with_link(pos, { pos, direction: Direction.South });
-        this.try_connect_cell_with_link(pos, { pos: north(pos), direction: Direction.South });
+        this.try_connect_cell_with_link(cell.id, make_link_id(pos, Direction.East));
+        this.try_connect_cell_with_link(cell.id, make_link_id(west(pos), Direction.East));
+        this.try_connect_cell_with_link(cell.id, make_link_id(pos, Direction.South));
+        this.try_connect_cell_with_link(cell.id, make_link_id(north(pos), Direction.South));
 
-        this.try_connect_hint_with_cell({ index: pos.y, direction: Direction.East }, pos);
-        this.try_connect_hint_with_cell({ index: pos.x, direction: Direction.South }, pos);
+        this.try_connect_hint_with_cell(make_hint_id(pos.y, Direction.East), cell.id);
+        this.try_connect_hint_with_cell(make_hint_id(pos.x, Direction.South), cell.id);
     }
 
-    add_link(link_id: LinkId) {
-        this.links.set(JSON.stringify(link_id), new Link(link_id));
-        this.xmax = Math.max(this.xmax, link_id.pos.x);
-        this.ymax = Math.max(this.ymax, link_id.pos.y);
+    add_link(pos: Pos, direction: Direction) {
+        const link = new Link(pos, direction);
+        this.links.set(link.id, link);
+        this.xmax = Math.max(this.xmax, pos.x);
+        this.ymax = Math.max(this.ymax, pos.y);
 
-        this.try_connect_cell_with_link(link_id.pos, link_id);
-        switch(link_id.direction) {
+        this.try_connect_cell_with_link(make_cell_id(pos), link.id);
+        switch(direction) {
             case Direction.East:
-                this.try_connect_cell_with_link(east(link_id.pos), link_id);
-                this.try_connect_hint_with_link({ index: link_id.pos.y, direction: Direction.East }, link_id);
+                this.try_connect_cell_with_link(make_cell_id(east(pos)), link.id);
+                this.try_connect_hint_with_link(make_hint_id(pos.y, Direction.East), link.id);
                 break;
             case Direction.South:
-                this.try_connect_cell_with_link(south(link_id.pos), link_id);
-                this.try_connect_hint_with_link({ index: link_id.pos.x, direction: Direction.South }, link_id);
+                this.try_connect_cell_with_link(make_cell_id(south(pos)), link.id);
+                this.try_connect_hint_with_link(make_hint_id(pos.x, Direction.South), link.id);
                 break;
         }
     }
 
-    add_hint(hint_id: HintId, value: number) {
-        this.hints.set(JSON.stringify(hint_id), new Hint(hint_id, value));
+    add_hint(index: Index, direction: Direction, value: number) {
+        const hint = new Hint(index, direction, value);
+        this.hints.set(hint.id, hint);
 
-        switch(hint_id.direction) {
+        switch(direction) {
             case Direction.South:
-                const x = hint_id.index;
+                const x = index;
                 for(const y of range(this.ymax + 1)) {
                     const pos = { x, y };
-                    this.try_connect_hint_with_cell(hint_id, pos);
-                    this.try_connect_hint_with_link(hint_id, { pos, direction: Direction.South });
+                    this.try_connect_hint_with_cell(hint.id, make_cell_id(pos));
+                    this.try_connect_hint_with_link(hint.id, make_link_id(pos, Direction.South));
                 }
                 break;
             case Direction.East:
-                const y = hint_id.index;
+                const y = index;
                 for(const x of range(this.xmax + 1)) {
                     const pos = { x, y };
-                    this.try_connect_hint_with_cell(hint_id, pos);
-                    this.try_connect_hint_with_link(hint_id, { pos, direction: Direction.East });
+                    this.try_connect_hint_with_cell(hint.id, make_cell_id(pos));
+                    this.try_connect_hint_with_link(hint.id, make_link_id(pos, Direction.East));
                 }
                 break;
         }
     }
 
     try_connect_cell_with_link(cell_id: CellId, link_id: LinkId) {
-        const link_key = JSON.stringify(link_id); // omg
-        const cell_key = JSON.stringify(cell_id); // omg
-
-        const cell = this.cells.get(cell_key);
-        const link = this.links.get(link_key);
+        const cell = this.cells.get(cell_id);
+        const link = this.links.get(link_id);
         if(cell && link) {
             cell.links.push(link);
             link.cells.push(cell);
@@ -183,11 +200,8 @@ export class GridBuilder {
     }
 
     try_connect_hint_with_cell(hint_id: HintId, cell_id: CellId) {
-        const hint_key = JSON.stringify(hint_id); // omg
-        const cell_key = JSON.stringify(cell_id); // omg
-
-        const hint = this.hints.get(hint_key);
-        const cell = this.cells.get(cell_key);
+        const hint = this.hints.get(hint_id);
+        const cell = this.cells.get(cell_id);
 
         if(hint && cell) {
             hint.cells.push(cell);
@@ -196,11 +210,8 @@ export class GridBuilder {
     }
 
     try_connect_hint_with_link(hint_id: HintId, link_id: LinkId) {
-        const hint_key = JSON.stringify(hint_id); // omg
-        const link_key = JSON.stringify(link_id); // omg
-
-        const hint = this.hints.get(hint_key);
-        const link = this.links.get(link_key);
+        const hint = this.hints.get(hint_id);
+        const link = this.links.get(link_id);
 
         if(hint && link) {
             hint.links.push(link);
@@ -212,53 +223,53 @@ export class GridBuilder {
         return new Grid(
             this.xmax,
             this.ymax,
-            Array.from(this.cells.values()),
-            Array.from(this.links.values()),
-            Array.from(this.hints.values()));
+            this.cells,
+            this.links,
+            this.hints);
     }
 }
 
 export class Grid {
     xmax: Index;
     ymax: Index;
-    dirty_cells: Set<Cell>;
-    dirty_links: Set<Link>;
-    dirty_hints: Set<Hint>;
-    cells: Array<Cell>;
-    links: Array<Link>;
-    hints: Array<Hint>;
+    dirty_cells: Set<CellId>;
+    dirty_links: Set<LinkId>;
+    dirty_hints: Set<HintId>;
+    cells: Map<CellId, Cell>;
+    links: Map<LinkId, Link>;
+    hints: Map<HintId, Hint>;
 
     constructor(xmax: Index,
                 ymax: Index,
-                cells: Array<Cell>,
-                links: Array<Link>,
-                hints: Array<Hint>) {
+                cells: Map<CellId, Cell>,
+                links: Map<LinkId, Link>,
+                hints: Map<HintId, Hint>) {
         this.xmax = xmax;
         this.ymax = ymax;
-        this.dirty_cells = new Set(cells);
-        this.dirty_links = new Set(links);
-        this.dirty_hints = new Set(hints);
+        this.dirty_cells = new Set(cells.keys());
+        this.dirty_links = new Set(links.keys());
+        this.dirty_hints = new Set(hints.keys());
         this.cells = cells;
         this.links = links;
         this.hints = hints;
     }
 }
 
-export function make_hints(hints_north_south: Array<number>, hints_east_west: Array<number>): Array<HintValue> {
-    const hints = new Array();
+export function make_hints(hints_north_south: Array<number>, hints_east_west: Array<number>): Array<HintContent> {
+    const hint_contents = new Array();
 
     hints_north_south.forEach((value, index) => {
-        hints.push({ id: { index: index + 1, direction: Direction.South }, value });
+        hint_contents.push({ index: index + 1, direction: Direction.South, value });
     });
 
     hints_east_west.forEach((value, index) => {
-        hints.push({ id: { index: index + 1, direction: Direction.East }, value });
+        hint_contents.push({ index: index + 1, direction: Direction.East, value });
     });
 
-    return hints;
+    return hint_contents;
 }
 
-export function make_grid(cx: Index, cy: Index, live_links: Array<LinkId>, hints: Array<HintValue>): Grid {
+export function make_grid(cx: Index, cy: Index, live_links: Array<LinkId>, hint_contents: Array<HintContent>): Grid {
     const zx = cx + 1;
     const zy = cy + 1;
 
@@ -276,23 +287,23 @@ export function make_grid(cx: Index, cy: Index, live_links: Array<LinkId>, hints
         for(const x of range(zx)) {
             const pos = { x, y };
             if(y > 0) {
-                builder.add_link({ pos, direction: Direction.East });
+                builder.add_link(pos, Direction.East);
             }
 
             if(x > 0) {
-                builder.add_link({ pos, direction: Direction.South });
+                builder.add_link(pos, Direction.South);
             }
         }
     }
 
     // add hints
-    for(const hint of hints) {
-        builder.add_hint(hint.id, hint.value);
+    for(const hint of hint_contents) {
+        builder.add_hint(hint.index, hint.direction, hint.value);
     }
 
     // set some links Live as requested
     for(const link_id of live_links) {
-        builder.links.get(JSON.stringify(link_id))!.state = State.Live;
+        builder.links.get(link_id)!.state = State.Live;
     }
 
     // mark all other edge links as Dead
@@ -313,7 +324,7 @@ function parse_links(cx: number, input: string) : Array<LinkId> {
         4x4:aCj6bC,4,4,4,S4,4,4,4,S4
 
         lowercase letter, a-z: skip that many cells
-        hex digit (0-9, A-F): the cell is encoded like so:
+        hex digit (0-9, A-F): the cell's live links are encoded like so:
 
         #define R 1
         #define U 2
@@ -370,9 +381,9 @@ function parse_links(cx: number, input: string) : Array<LinkId> {
     return links;
 }
 
-function parse_hints(cx: number, input: string) : Array<HintValue> {
+function parse_hints(cx: number, input: string) : Array<HintContent> {
     const hints_matcher = /,(S?)(\d+)/g;
-    const hints = new Array();
+    const hint_contents = new Array();
 
     let i = 0;
     let hint;
@@ -380,14 +391,14 @@ function parse_hints(cx: number, input: string) : Array<HintValue> {
     while(hint = hints_matcher.exec(input)) {
         const value = parseInt(hint[2]);
         if(i < cx) {
-            hints.push({ id: { index: i + 1, direction: Direction.South }, value });
+            hint_contents.push({ index: i + 1, direction: Direction.South, value });
         } else {
-            hints.push({ id: { index: i + 1 - cx, direction: Direction.East }, value });
+            hint_contents.push({ index: i + 1 - cx, direction: Direction.East, value });
         }
         ++i;
     }
 
-    return hints;
+    return hint_contents;
 }
 
 export function parse_grid(input: string): Grid {

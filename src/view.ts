@@ -9,8 +9,10 @@ import {
     LinkId,
     Pos,
     State,
+    make_cell_id,
     make_grid,
     make_hints,
+    make_link_id,
     parse_grid
 } from './grid.js';
 
@@ -49,10 +51,10 @@ export class View {
         });
 
         this.set_grid(make_grid(4, 4, [
-                { pos: { x: 1, y: 1 }, direction: Direction.South },
-                { pos: { x: 0, y: 2 }, direction: Direction.East },
-                { pos: { x: 1, y: 4 }, direction: Direction.East },
-                { pos: { x: 2, y: 4 }, direction: Direction.South }
+                make_link_id({ x: 1, y: 1 }, Direction.South),
+                make_link_id({ x: 0, y: 2 }, Direction.East),
+                make_link_id({ x: 1, y: 4 }, Direction.East),
+                make_link_id({ x: 2, y: 4 }, Direction.South)
             ],
             make_hints([4,3,3,2], [4,3,3,2])
         ));
@@ -98,21 +100,11 @@ export class View {
 
         let thing = null;
         if(x_in_link && !y_in_link) {
-            if(x > 0 && x < this.grid.xmax) {
-                thing = this.grid.links.find(link =>
-                                                 link.id.pos.x == x &&
-                                                 link.id.pos.y == y &&
-                                                 link.id.direction == Direction.East);
-            }
+            thing = this.grid.links.get(make_link_id({ x, y }, Direction.East));
         } else if(!x_in_link && y_in_link) {
-            if(y > 0 && y < this.grid.ymax) {
-                thing = this.grid.links.find(link =>
-                                                 link.id.pos.x == x &&
-                                                 link.id.pos.y == y &&
-                                                 link.id.direction == Direction.South);
-            }
+            thing = this.grid.links.get(make_link_id({ x, y }, Direction.South));
         } else if(!x_in_link && !y_in_link) {
-            thing = this.grid.cells.find(cell => cell.id.x == x && cell.id.y == y);
+            thing = this.grid.cells.get(make_cell_id({ x, y }));
         }
 
         if(thing != null) {
@@ -136,36 +128,36 @@ export class View {
         const cell_diameter = this.cell_radius * 2;
         const link_diameter = this.link_radius * 2;
 
-        for(const hint of this.grid.hints) {
+        for(const hint of this.grid.hints.values()) {
             this.draw_hint(context, hint);
         }
 
-        for(const cell of this.grid.cells) {
-            const x = cell.id.x;
-            const y = cell.id.y;
+        for(const cell of this.grid.cells.values()) {
+            const x = cell.pos.x;
+            const y = cell.pos.y;
 
             const px = x * (cell_diameter + link_diameter);
             const py = y * (cell_diameter + link_diameter);
 
-            this.draw_cell(context, px, py, cell.state, this.grid.dirty_cells.has(cell));
+            this.draw_cell(context, px, py, cell.state, this.grid.dirty_cells.has(cell.id));
         }
 
-        for(const link of this.grid.links) {
-            const x = link.id.pos.x;
-            const y = link.id.pos.y;
-            const direction = link.id.direction;
+        for(const link of this.grid.links.values()) {
+            const x = link.pos.x;
+            const y = link.pos.y;
+            const direction = link.direction;
 
             const px = x * (cell_diameter + link_diameter);
             const py = y * (cell_diameter + link_diameter);
 
             switch(direction) {
                 case Direction.East: {
-                    this.draw_link(context, px + cell_diameter, py, direction, link.state, this.grid.dirty_links.has(link));
+                    this.draw_link(context, px + cell_diameter, py, direction, link.state, this.grid.dirty_links.has(link.id));
                     break;
                 }
 
                 case Direction.South: {
-                    this.draw_link(context, px, py + cell_diameter, direction, link.state, this.grid.dirty_links.has(link));
+                    this.draw_link(context, px, py + cell_diameter, direction, link.state, this.grid.dirty_links.has(link.id));
                     break;
                 }
             }
@@ -173,17 +165,15 @@ export class View {
     }
 
     draw_hint(context: CanvasRenderingContext2D, hint: Hint) {
-        const index = hint.id.index;
-
         const cell_diameter = this.cell_radius * 2;
         const link_diameter = this.link_radius * 2;
 
-        const px = (hint.id.direction == Direction.East)
+        const px = (hint.direction == Direction.East)
             ? this.cell_radius
-            : index * (cell_diameter + link_diameter) + this.cell_radius;
-        const py = (hint.id.direction == Direction.South)
+            : hint.index * (cell_diameter + link_diameter) + this.cell_radius;
+        const py = (hint.direction == Direction.South)
             ? this.cell_radius
-            : index * (cell_diameter + link_diameter) + this.cell_radius;
+            : hint.index * (cell_diameter + link_diameter) + this.cell_radius;
 
         // states of a hint can be:
         //  - violation
@@ -212,16 +202,16 @@ export class View {
             hint_color = '#aa0000'; // violation
         } else if(num_live_cells == hint.value && num_unknown_cells == 0) {
             hint_color = '#999999'; // satiated
-        } else if(this.grid.dirty_hints.has(hint)) {
+        } else if(this.grid.dirty_hints.has(hint.id)) {
             hint_color = '#00aa22'; // open
         //} else if(num_live_cells == hint.value - 1) {
             //hint_color = '#44ff44'; // nigh
         }
 
-        this.draw_hint_at(context, px, py, hint.value, hint_color);
+        this.draw_hint_value(context, px, py, hint.value, hint_color);
     }
 
-    draw_hint_at(context: CanvasRenderingContext2D, px: number, py: number, value: number, color: string) {
+    draw_hint_value(context: CanvasRenderingContext2D, px: number, py: number, value: number, color: string) {
         context.font = '20px Tahoma';
         context.fillStyle = color;
         context.textAlign = 'center';

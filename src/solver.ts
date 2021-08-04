@@ -14,8 +14,8 @@ interface Action {
     execute(grid: Grid): void;
 }
 
-function reason(label: string, id: any): string {
-    return label + ': ' + JSON.stringify(id);
+function reason(label: string, id: string): string {
+    return label + ': ' + id;
 }
 
 class SetCellState implements Action {
@@ -30,17 +30,21 @@ class SetCellState implements Action {
     }
 
     execute(grid: Grid) {
-        console.log('cell ' + JSON.stringify(this.cell.id) + ' -> ' + this.new_state + '; ' + this.reason);
+        console.log('cell ' + this.cell.id + ' -> ' + this.new_state + '; ' + this.reason);
         this.cell.state = this.new_state;
 
         const [_live_links, unknown_links, _dead_links]: [Array<Link>, Array<Link>, Array<Link>] = split_links(this.cell.links);
         for(const link of unknown_links) {
-            grid.dirty_links.add(link);
+            grid.dirty_links.add(link.id);
         }
         for(const hint of this.cell.hints) {
-            grid.dirty_hints.add(hint);
+            grid.dirty_hints.add(hint.id);
         }
-        grid.dirty_cells.add(this.cell);
+        if(this.new_state == State.Unknown) {
+            grid.dirty_cells.add(this.cell.id);
+        } else {
+            grid.dirty_cells.delete(this.cell.id);
+        }
     }
 }
 
@@ -56,21 +60,25 @@ class SetLinkState implements Action {
     }
 
     execute(grid: Grid) {
-        console.log('link ' + JSON.stringify(this.link.id) + ' -> ' + this.new_state + '; ' + this.reason);
+        console.log('link ' + this.link.id + ' -> ' + this.new_state + '; ' + this.reason);
         this.link.state = this.new_state;
 
         const [live_cells, unknown_cells, _dead_cells] = split_cells(this.link.cells);
         for(const cell of unknown_cells) {
-            grid.dirty_cells.add(cell);
+            grid.dirty_cells.add(cell.id);
         }
         if(this.link.hint) {
-            grid.dirty_hints.add(this.link.hint);
+            grid.dirty_hints.add(this.link.hint.id);
         }
         for(const cell of live_cells) {
-            grid.dirty_cells.add(cell);
+            grid.dirty_cells.add(cell.id);
             this.propagate_chain_id(grid, cell, this.link.chain_id);
         }
-        grid.dirty_links.add(this.link);
+        if(this.new_state == State.Unknown) {
+            grid.dirty_links.add(this.link.id);
+        } else {
+            grid.dirty_links.delete(this.link.id);
+        }
     }
 
     // For every connected live link, set its chain id to match
@@ -81,8 +89,8 @@ class SetLinkState implements Action {
                 continue;
             }
             link.chain_id = chain_id;
-            grid.dirty_links.add(link);
-            grid.dirty_cells.add(cell);
+            grid.dirty_links.add(link.id);
+            grid.dirty_cells.add(cell.id);
 
             for(const neighbor of link.cells) {
                 this.propagate_chain_id(grid, neighbor, chain_id);
@@ -192,9 +200,10 @@ export class GridSolver {
 
     process() : Array<Action> {
         const grid = this.grid;
-        function loop_process<T>(source: Set<T>, process_function: (grid: Grid, thing: T) => Array<Action>) {
-            for(const value of source) {
-                source.delete(value);
+        function loop_process<T>(ids: Set<string>, source: Map<string, T>, process_function: (grid: Grid, thing: T) => Array<Action>) {
+            for(const id of ids) {
+                ids.delete(id);
+                const value = source.get(id)!;
                 const result = process_function(grid, value);
                 if(result.length) {
                     return result;
@@ -204,9 +213,9 @@ export class GridSolver {
         }
 
         return undefined
-          || loop_process(grid.dirty_hints, process_hint)
-          || loop_process(grid.dirty_cells, process_cell)
-          || loop_process(grid.dirty_links, process_link)
+          || loop_process(grid.dirty_hints, grid.hints, process_hint)
+          || loop_process(grid.dirty_cells, grid.cells, process_cell)
+          || loop_process(grid.dirty_links, grid.links, process_link)
           || [];
     }
 }
