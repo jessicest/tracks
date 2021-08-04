@@ -11,6 +11,7 @@ export const enum Direction {
 }
 
 export type Index = number;
+export type Id = string;
 
 export type Pos = {
     x: Index,
@@ -33,35 +34,34 @@ function west(pos: Pos) : Pos {
     return { x: pos.x - 1, y: pos.y };
 }
 
-export type CellId = string;
+export type CellId = Id;
 
 export function make_cell_id(pos: Pos): CellId {
     return JSON.stringify(pos);
 }
 
-export type LinkId = string;
+export type LinkId = Id;
 
 export function make_link_id(pos: Pos, direction: Direction): LinkId {
     return JSON.stringify({ pos, direction });
 }
 
-export type HintId = string;
+export type HintId = Id;
 
 export function make_hint_id(index: Index, direction: Direction): HintId {
     return JSON.stringify({ index, direction });
 }
+
+export type LinkContent = {
+    pos: Pos,
+    direction: Direction,
+};
 
 export type HintContent = {
     index: Index,
     direction: Direction,
     value: number
 };
-
-export const enum State {
-    Live,
-    Unknown,
-    Dead,
-}
 
 export class Hint {
     id: HintId;
@@ -86,14 +86,12 @@ export class Cell {
     pos: Pos;
     hints: Array<Hint>;
     links: Array<Link>;
-    state: State;
 
     constructor(pos: Pos) {
         this.id = make_cell_id(pos);
         this.pos = pos;
         this.hints = new Array();
         this.links = new Array();
-        this.state = State.Unknown;
     }
 }
 
@@ -101,19 +99,15 @@ export class Link {
     id: LinkId;
     pos: Pos;
     direction: Direction;
-    chain_id: LinkId;
     hint: Hint | undefined;
     cells: Array<Cell>;
-    state: State;
 
     constructor(pos: Pos, direction: Direction) {
         this.id = make_link_id(pos, direction);
         this.pos = pos;
         this.direction = direction;
-        this.chain_id = this.id;
         this.hint = undefined;
         this.cells = new Array();
-        this.state = State.Unknown;
     }
 }
 
@@ -232,9 +226,6 @@ export class GridBuilder {
 export class Grid {
     xmax: Index;
     ymax: Index;
-    dirty_cells: Set<CellId>;
-    dirty_links: Set<LinkId>;
-    dirty_hints: Set<HintId>;
     cells: Map<CellId, Cell>;
     links: Map<LinkId, Link>;
     hints: Map<HintId, Hint>;
@@ -246,9 +237,6 @@ export class Grid {
                 hints: Map<HintId, Hint>) {
         this.xmax = xmax;
         this.ymax = ymax;
-        this.dirty_cells = new Set(cells.keys());
-        this.dirty_links = new Set(links.keys());
-        this.dirty_hints = new Set(hints.keys());
         this.cells = cells;
         this.links = links;
         this.hints = hints;
@@ -269,7 +257,7 @@ export function make_hints(hints_north_south: Array<number>, hints_east_west: Ar
     return hint_contents;
 }
 
-export function make_grid(cx: Index, cy: Index, live_links: Array<LinkId>, hint_contents: Array<HintContent>): Grid {
+export function make_grid(cx: Index, cy: Index, live_links: Array<LinkContent>, hint_contents: Array<HintContent>): Grid {
     const zx = cx + 1;
     const zy = cy + 1;
 
@@ -283,34 +271,24 @@ export function make_grid(cx: Index, cy: Index, live_links: Array<LinkId>, hint_
     }
 
     // add links
-    for(const y of range(zy)) {
-        for(const x of range(zx)) {
+    for(const y of range(1, zy)) {
+        for(const x of range(1, zx)) {
             const pos = { x, y };
-            if(y > 0) {
-                builder.add_link(pos, Direction.East);
-            }
+            builder.add_link(pos, Direction.East);
+            builder.add_link(pos, Direction.South);
+        }
+    }
 
-            if(x > 0) {
-                builder.add_link(pos, Direction.South);
-            }
+    // add any live links that are missing (this is for the offramps)
+    for(const link_content of live_links) {
+        if(!builder.links.get(make_link_id(link_content.pos, link_content.direction))) {
+            builder.add_link(link_content.pos, link_content.direction);
         }
     }
 
     // add hints
     for(const hint of hint_contents) {
         builder.add_hint(hint.index, hint.direction, hint.value);
-    }
-
-    // set some links Live as requested
-    for(const link_id of live_links) {
-        builder.links.get(link_id)!.state = State.Live;
-    }
-
-    // mark all other edge links as Dead
-    for(const link of builder.links.values()) {
-        if(link.state == State.Unknown && link.cells.length == 1) {
-            link.state = State.Dead;
-        }
     }
 
     return builder.build();
