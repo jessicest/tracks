@@ -147,7 +147,7 @@ export class View {
             const px = x * (cell_diameter + link_diameter);
             const py = y * (cell_diameter + link_diameter);
 
-            this.draw_cell(context, px, py, cell.state);
+            this.draw_cell(context, px, py, cell.state, this.grid.dirty_cells.has(cell));
         }
 
         for(const link of this.grid.links) {
@@ -160,12 +160,12 @@ export class View {
 
             switch(direction) {
                 case Direction.East: {
-                    this.draw_link_east(context, px + cell_diameter, py, link.state);
+                    this.draw_link(context, px + cell_diameter, py, direction, link.state, this.grid.dirty_links.has(link));
                     break;
                 }
 
                 case Direction.South: {
-                    this.draw_link_south(context, px, py + cell_diameter, link.state);
+                    this.draw_link(context, px, py + cell_diameter, direction, link.state, this.grid.dirty_links.has(link));
                     break;
                 }
             }
@@ -212,6 +212,8 @@ export class View {
             hint_color = '#aa0000'; // violation
         } else if(num_live_cells == hint.value && num_unknown_cells == 0) {
             hint_color = '#999999'; // satiated
+        } else if(this.grid.dirty_hints.has(hint)) {
+            hint_color = '#00aa22'; // open
         //} else if(num_live_cells == hint.value - 1) {
             //hint_color = '#44ff44'; // nigh
         }
@@ -227,7 +229,7 @@ export class View {
         context.fillText(value.toString(), px, py);
     }
 
-    draw_cell(context: CanvasRenderingContext2D, px: number, py: number, state: State) {
+    draw_cell(context: CanvasRenderingContext2D, px: number, py: number, state: State, is_dirty: boolean) {
         const cell_diameter = this.cell_radius * 2;
 
         const gradient = context.createRadialGradient(
@@ -238,11 +240,14 @@ export class View {
             py + this.cell_radius,
             this.cell_radius);
 
-        if(state != State.Dead) {
-            gradient.addColorStop(0, "#8899dd");
-        } else {
+        if(state == State.Dead) {
             gradient.addColorStop(0, "#ddeeff");
+        } else if(state == State.Live || (state == State.Unknown && is_dirty)) {
+            gradient.addColorStop(0, "#00aa22");
+        } else {
+            gradient.addColorStop(0, "#8899dd");
         }
+
         if(state != State.Live) {
             gradient.addColorStop(1, "#ddeeff");
         } else {
@@ -253,23 +258,37 @@ export class View {
         context.fillRect(px, py, cell_diameter, cell_diameter);
     }
 
-    draw_link_south(context: CanvasRenderingContext2D, px: number, py: number, state: State) {
+    draw_link(context: CanvasRenderingContext2D, px: number, py: number, direction: Direction, state: State, is_dirty: boolean) {
         const cell_diameter = this.cell_radius * 2;
         const link_diameter = this.link_radius * 2;
 
-        const gradient = context.createRadialGradient(
-            px + this.cell_radius,
-            py + this.link_radius,
-            1,
-            px + this.cell_radius,
-            py + this.link_radius,
-            this.link_radius);
-
-        if(state != State.Dead) {
-            gradient.addColorStop(0, "#dd9988");
+        let gradient;
+        if(direction == Direction.South) {
+            gradient = context.createRadialGradient(
+                px + this.cell_radius,
+                py + this.link_radius,
+                1,
+                px + this.cell_radius,
+                py + this.link_radius,
+                this.link_radius);
         } else {
-            gradient.addColorStop(0, "#ffeedd");
+            gradient = context.createRadialGradient(
+                px + this.link_radius,
+                py + this.cell_radius,
+                1,
+                px + this.link_radius,
+                py + this.cell_radius,
+                this.link_radius);
         }
+
+        if(state == State.Dead) {
+            gradient.addColorStop(0, "#ffeedd");
+        } else if(state == State.Unknown && is_dirty) {
+            gradient.addColorStop(0, "#00aa22");
+        } else {
+            gradient.addColorStop(0, "#dd9988");
+        }
+
         if(state != State.Live) {
             gradient.addColorStop(1, "#ffeedd");
         } else {
@@ -277,34 +296,11 @@ export class View {
         }
 
         context.fillStyle = gradient;
-        context.fillRect(px, py, cell_diameter, link_diameter);
-    }
-
-    draw_link_east(context: CanvasRenderingContext2D, px: number, py: number, state: State) {
-        const cell_diameter = this.cell_radius * 2;
-        const link_diameter = this.link_radius * 2;
-
-        const gradient = context.createRadialGradient(
-            px + this.link_radius,
-            py + this.cell_radius,
-            1,
-            px + this.link_radius,
-            py + this.cell_radius,
-            this.link_radius);
-
-        if(state != State.Dead) {
-            gradient.addColorStop(0, "#dd9988");
+        if(direction == Direction.South) {
+            context.fillRect(px, py, cell_diameter, link_diameter);
         } else {
-            gradient.addColorStop(0, "#ffeedd");
+            context.fillRect(px, py, link_diameter, cell_diameter);
         }
-        if(state != State.Live) {
-            gradient.addColorStop(1, "#ffeedd");
-        } else {
-            gradient.addColorStop(1, "#dd9988");
-        }
-
-        context.fillStyle = gradient;
-        context.fillRect(px, py, link_diameter, cell_diameter);
     }
 
     solve_step() {
