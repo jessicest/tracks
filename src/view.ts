@@ -60,7 +60,7 @@ export class View {
         ));
 
         // resize the canvas to fill browser window dynamically
-        window.addEventListener('resize', this.resize_canvas, false);
+        window.addEventListener('resize', window.view.resize_canvas, false);
     }
 
     resize_canvas() {
