@@ -148,11 +148,11 @@ function process_hint(solver: Solver, hint: Hint) : Action | null {
             return new SetCellStatus(unknown_cells[0], Status.Live, reason("hint->cell creation", hint.id));
         }
 
-        if(live_cells.length + unknown_cells.length == hint.value - 1) {
+        if(live_cells.length == hint.value - 1) {
             const [_live_links, unknown_links] = solver.split_links(hint.links);
             for(const link of unknown_links) {
-                const [live_cells, unknown_cells] = solver.split_cells(link.cells);
-                if(live_cells.length == 0) {
+                const [live_neighbors, _unknown_neighbors] = solver.split_cells(link.cells);
+                if(live_neighbors.length == 0) {
                     return new SetLinkStatus(link, Status.Dead, reason("hint->link restriction", hint.id));
                 }
             }
