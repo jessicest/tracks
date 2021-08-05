@@ -41,7 +41,7 @@ class RepealCandidacy implements Action {
     }
 }
 
-class SetCellStatus implements Action {
+export class SetCellStatus implements Action {
     cell: Cell;
     new_status: Status;
     reason: string;
@@ -55,10 +55,10 @@ class SetCellStatus implements Action {
     execute(solver: Solver) {
         console.log('cell ' + this.cell.id + ' -> ' + this.new_status + '; ' + this.reason);
         solver.statuses.set(this.cell.id, this.new_status);
-        if(this.new_status == Status.Dead) {
-            solver.candidates.delete(this.cell.id);
-        } else {
+        if(this.new_status != Status.Dead || this.reason == "click") {
             solver.candidates.add(this.cell.id);
+        } else {
+            solver.candidates.delete(this.cell.id);
         }
 
         const [_live_links, unknown_links] = solver.split_links(this.cell.links);
@@ -71,7 +71,7 @@ class SetCellStatus implements Action {
     }
 }
 
-class SetLinkStatus implements Action {
+export class SetLinkStatus implements Action {
     link: Link;
     new_status: Status;
     reason: string;
@@ -94,10 +94,10 @@ class SetLinkStatus implements Action {
         }
 
         solver.statuses.set(this.link.id, this.new_status);
-        if(this.new_status == Status.Dead) {
-            solver.candidates.delete(this.link.id);
-        } else {
+        if(this.new_status != Status.Dead || this.reason == "click") {
             solver.candidates.add(this.link.id);
+        } else {
+            solver.candidates.delete(this.link.id);
         }
 
         if(this.link.hint != null) {

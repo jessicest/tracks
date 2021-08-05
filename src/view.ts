@@ -15,6 +15,8 @@ import {
 } from './grid.js';
 
 import {
+    SetCellStatus,
+    SetLinkStatus,
     Solver,
     Status,
     make_solver,
@@ -102,25 +104,34 @@ export class View {
         const y = Math.floor(py / diameter);
 
         let id = null;
-        if(x_in_link && !y_in_link) {
+        let is_link = true;
+        if(!x_in_link && !y_in_link) {
+            id = make_cell_id({ x, y });
+            is_link = false;
+        } else if(x_in_link && !y_in_link) {
             id = make_link_id({ x, y }, Direction.East);
         } else if(!x_in_link && y_in_link) {
             id = make_link_id({ x, y }, Direction.South);
-        } else if(!x_in_link && !y_in_link) {
-            id = make_cell_id({ x, y });
         }
 
         if(id != null) {
             const status = this.solver.statuses.get(id);
-            if(status != null) {
-                if(left_click && status == Status.Live) {
-                    this.solver.statuses.set(id, Status.Unknown);
-                } else if(left_click && status == Status.Unknown) {
-                    this.solver.statuses.set(id, Status.Live);
-                } else if(!left_click && status == Status.Dead) {
-                    this.solver.statuses.set(id, Status.Unknown);
-                } else if(!left_click && status == Status.Unknown) {
-                    this.solver.statuses.set(id, Status.Dead);
+            let new_status;
+            if(left_click && status == Status.Live) {
+                new_status = Status.Unknown;
+            } else if(left_click && status == Status.Unknown) {
+                new_status = Status.Live;
+            } else if(!left_click && status == Status.Dead) {
+                new_status = Status.Unknown;
+            } else if(!left_click && status == Status.Unknown) {
+                new_status = Status.Dead;
+            }
+
+            if(new_status != null) {
+                if(is_link) {
+                    new SetLinkStatus(this.solver.grid.links.get(id)!, new_status, "click").execute(this.solver);
+                } else {
+                    new SetCellStatus(this.solver.grid.cells.get(id)!, new_status, "click").execute(this.solver);
                 }
             }
         }
@@ -315,8 +326,11 @@ export class View {
     auto_solve_step() {
         function step() {
             const solve_rate = parseInt((document.getElementById('solve_rate') as HTMLInputElement).value);
-            if(window.view.solve_step()) {
+            const action = window.view.solver.process();
+            if(action != null) {
+                action.execute(window.view.solver);
                 window.view.auto_solver = setTimeout(step, 1001 - solve_rate);
+                window.view.redraw();
             } else {
                 window.view.auto_solve_stop();
             }
