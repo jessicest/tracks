@@ -24,6 +24,10 @@ export interface Action {
     execute(solver: Solver): Array<Id>;
 }
 
+function output(s: string) {
+    console.log(s);
+}
+
 function reason(label: string, id: string): string {
     return label + ': ' + id;
 }
@@ -36,7 +40,7 @@ class RepealCandidacy implements Action {
     }
 
     execute(solver: Solver): Array<Id> {
-        console.log('clear: ' + this.id);
+        output('clear: ' + this.id);
         solver.candidates.delete(this.id);
         return [this.id];
     }
@@ -54,7 +58,7 @@ export class SetCellStatus implements Action {
     }
 
     execute(solver: Solver): Array<Id> {
-        console.log('cell ' + this.cell.id + ' -> ' + this.new_status + '; ' + this.reason);
+        output('cell ' + this.cell.id + ' -> ' + this.new_status + '; ' + this.reason);
         const modified_ids = new Array();
 
         solver.statuses.set(this.cell.id, this.new_status);
@@ -91,7 +95,7 @@ export class SetLinkStatus implements Action {
     }
 
     execute(solver: Solver): Array<Id> {
-        console.log('link ' + this.link.id + ' -> ' + this.new_status + '; ' + this.reason);
+        output('link ' + this.link.id + ' -> ' + this.new_status + '; ' + this.reason);
         const modified_ids = new Array();
 
         const [live_cells, unknown_cells] = solver.split_cells(this.link.cells);
@@ -265,7 +269,7 @@ export class Solver {
             const action = this.process();
             if(action) {
                 action.execute(this);
-                console.log('.');
+                output('.');
             } else {
                 break;
             }
