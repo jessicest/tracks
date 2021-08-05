@@ -94,8 +94,8 @@ export class View {
         const link_diameter = this.link_radius * 2;
         const diameter = cell_diameter + link_diameter;
 
-        const px = pixel_pos.x - this.link_radius;
-        const py = pixel_pos.y - this.link_radius;
+        const px = pixel_pos.x;
+        const py = pixel_pos.y;
 
         const x_in_link = px % diameter > cell_diameter;
         const y_in_link = py % diameter > cell_diameter;
