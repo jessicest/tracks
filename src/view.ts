@@ -213,7 +213,7 @@ export class View {
 
         if(status == Status.Dead) {
             gradient.addColorStop(0, "#ddeeff");
-        } else if(status == Status.Unknown && is_candidate) {
+        } else if(is_candidate) {
             gradient.addColorStop(0, "#00aa22");
         } else {
             gradient.addColorStop(0, "#8899dd");
@@ -293,8 +293,8 @@ export class View {
         const action = this.solver.process();
         if(action) {
             action.execute(this.solver);
-            this.redraw();
         }
+        this.redraw();
     }
 
     parse() {

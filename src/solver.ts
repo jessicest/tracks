@@ -28,6 +28,19 @@ function reason(label: string, id: string): string {
     return label + ': ' + id;
 }
 
+class RepealCandidacy implements Action {
+    id: Id;
+
+    constructor(id: Id) {
+        this.id = id;
+    }
+
+    execute(solver: Solver) {
+        console.log('clear: ' + id);
+        solver.candidates.delete(this.id);
+    }
+}
+
 class SetCellStatus implements Action {
     cell: Cell;
     new_status: Status;
@@ -124,8 +137,11 @@ function process_hint(solver: Solver, hint: Hint) : Action | null {
 
         if(live_cells.length + unknown_cells.length == hint.value - 1) {
             const [live_links, unknown_links, dead_links] = solver.split_links(hint.links);
-            if(unknown_links.length > 0) {
-                return new SetLinkStatus(unknown_links[0], Status.Dead, reason("hint restriction", hint.id));
+            for(const link of unknown_links) {
+                const [live_cells, unknown_cells, dead_cells] = solver.split_cells(link.cells);
+                if(!live_cells) {
+                }
+                return new SetLinkStatus(link, Status.Dead, reason("hint restriction", hint.id));
             }
         }
     }
@@ -164,16 +180,6 @@ function process_cell(solver: Solver, cell: Cell) : Action | null {
         return new Fail();
     }
 
-    if(status == Status.Unknown) {
-        if(dead_links.length > 2) {
-            return new SetCellStatus(cell, Status.Dead, reason("cell extinguishment", dead_links[0].id));
-        }
-
-        if(live_links.length > 0) {
-            return new SetCellStatus(cell, Status.Live, reason("cell ignition", live_links[0].id));
-        }
-    }
-
     if(unknown_links.length > 0) {
         if(live_links.length == 2) {
             return new SetLinkStatus(unknown_links[0], Status.Dead, reason("completed cell erasure", cell.id));
@@ -181,6 +187,16 @@ function process_cell(solver: Solver, cell: Cell) : Action | null {
 
         if(status == Status.Live && dead_links.length == 2) {
             return new SetLinkStatus(unknown_links[0], Status.Dead, reason("completed cell erasure", cell.id));
+        }
+    }
+
+    if(status == Status.Unknown) {
+        if(dead_links.length > 2) {
+            return new SetCellStatus(cell, Status.Dead, reason("cell extinguishment", dead_links[0].id));
+        }
+
+        if(live_links.length > 0) {
+            return new SetCellStatus(cell, Status.Live, reason("cell ignition", live_links[0].id));
         }
     }
 
@@ -219,8 +235,10 @@ export class Solver {
             const action = this.process();
             if(action) {
                 action.execute(this);
+                console.log('.');
+            } else {
+                break;
             }
-            console.log('.');
         }
     }
 
@@ -238,7 +256,7 @@ export class Solver {
                 if(result) {
                     return result;
                 } else {
-                    this.candidates.delete(id);
+                    return new RepealCandidacy(id);
                 }
             }
         }
