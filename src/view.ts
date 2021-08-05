@@ -33,11 +33,13 @@ export class View {
     canvas: any;
     cell_radius: number;
     link_radius: number;
+    auto_solver: ReturnType<typeof setTimeout> | null;
 
     constructor(canvas: any) {
         this.canvas = canvas;
         this.cell_radius = 1;
         this.link_radius = 1;
+        this.auto_solver = null;
         canvas.addEventListener('click', (event: any) => {
             this.click(true, this.event_pos(event));
             event.preventDefault();
@@ -299,12 +301,46 @@ export class View {
         this.draw_gradient(context, px, py, cx, cy, inner_color, outer_color);
     }
 
-    solve_step() {
+    solve_step(): boolean {
         const action = this.solver.process();
         if(action) {
             action.execute(this.solver);
+            this.redraw();
+            return true;
+        } else {
+            return false;
         }
-        this.redraw();
+    }
+
+    auto_solve_step() {
+        function step() {
+            const solve_rate = parseInt((document.getElementById('solve_rate') as HTMLInputElement).value);
+            if(window.view.solve_step()) {
+                window.view.auto_solver = setTimeout(step, 1001 - solve_rate);
+            } else {
+                window.view.auto_solve_stop();
+            }
+        }
+
+        step();
+    }
+
+    auto_solve_start() {
+        const button = document.getElementById('auto') as HTMLButtonElement;
+        button.innerHTML = 'stop';
+        button.onclick = window.view.auto_solve_stop;
+
+        window.view.auto_solve_step();
+    }
+
+    auto_solve_stop() {
+        const button = document.getElementById('auto') as HTMLButtonElement;
+        button.innerHTML = 'start';
+        button.onclick = window.view.auto_solve_start;
+
+        if(window.view.auto_solver != null) {
+            clearTimeout(window.view.auto_solver);
+        }
     }
 
     parse() {

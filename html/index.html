@@ -8,7 +8,9 @@
         <p>
             <input id='code' />
             <button onclick='window.view.parse()'>parse</button>
-            <button onclick='window.view.solve_step()'>go</button>
+            <button onclick='window.view.solve_step()'>step</button>
+            <input type="range" min="1" max="1000" value="500" class="slider" id="solve_rate" />
+            <button id='auto' onclick='window.view.auto_solve_start()'>solve</button>
         </p>
         <div id='view' width='100%' height='100%'>
             <canvas width='100%' height='100%' id='canvas' style='outline: thick solid;'></canvas>
