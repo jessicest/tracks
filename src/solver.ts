@@ -55,6 +55,9 @@ class SetCellStatus implements Action {
     execute(solver: Solver) {
         console.log('cell ' + this.cell.id + ' -> ' + this.new_status + '; ' + this.reason);
         solver.statuses.set(this.cell.id, this.new_status);
+        if(this.new_status == Status.Dead) {
+            solver.candidates.delete(this.cell.id);
+        }
 
         const [_live_links, unknown_links] = solver.split_links(this.cell.links);
         for(const link of unknown_links) {
@@ -86,6 +89,9 @@ class SetLinkStatus implements Action {
         }
 
         solver.statuses.set(this.link.id, this.new_status);
+        if(this.new_status == Status.Dead) {
+            solver.candidates.delete(this.link.id);
+        }
 
         if(this.link.hint != null) {
             solver.candidates.add(this.link.hint.id);
