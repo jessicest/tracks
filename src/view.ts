@@ -6,18 +6,18 @@ import {
     Hint,
     Index,
     Link,
-    LinkId,
     Pos,
-    State,
     make_cell_id,
     make_grid,
     make_hints,
-    make_link_id,
-    parse_grid
+    make_link_id
 } from './grid.js';
 
 import {
-    GridSolver
+    Solver,
+    Status,
+    make_solver,
+    parse_code
 } from './solver.js';
 
 declare global {
@@ -28,7 +28,7 @@ declare global {
 
 export class View {
     grid!: Grid;
-    solver!: GridSolver;
+    solver!: Solver;
     canvas: any;
     cell_radius: number;
     link_radius: number;
@@ -50,11 +50,11 @@ export class View {
             return false;
         });
 
-        this.set_grid(make_grid(4, 4, [
-                make_link_id({ x: 1, y: 1 }, Direction.South),
-                make_link_id({ x: 0, y: 2 }, Direction.East),
-                make_link_id({ x: 1, y: 4 }, Direction.East),
-                make_link_id({ x: 2, y: 4 }, Direction.South)
+        this.set_solver(make_solver(4, 4, [
+                { pos: { x: 1, y: 1 }, direction: Direction.South },
+                { pos: { x: 0, y: 2 }, direction: Direction.East },
+                { pos: { x: 1, y: 4 }, direction: Direction.East },
+                { pos: { x: 2, y: 4 }, direction: Direction.South }
             ],
             make_hints([4,3,3,2], [4,3,3,2])
         ));
@@ -73,9 +73,9 @@ export class View {
         this.canvas.height = this.grid.ymax * (cell_diameter + link_diameter) + this.link_radius * 5 + this.cell_radius * 2;
     }
 
-    set_grid(grid: Grid) {
-        this.grid = grid;
-        this.solver = new GridSolver(this.grid);
+    set_solver(solver: Solver) {
+        this.grid = solver.grid;
+        this.solver = solver;
         this.resize_canvas();
         this.redraw();
     }
@@ -98,24 +98,27 @@ export class View {
         const x = Math.floor(px / diameter);
         const y = Math.floor(py / diameter);
 
-        let thing = null;
+        let id = null;
         if(x_in_link && !y_in_link) {
-            thing = this.grid.links.get(make_link_id({ x, y }, Direction.East));
+            id = make_link_id({ x, y }, Direction.East);
         } else if(!x_in_link && y_in_link) {
-            thing = this.grid.links.get(make_link_id({ x, y }, Direction.South));
+            id = make_link_id({ x, y }, Direction.South);
         } else if(!x_in_link && !y_in_link) {
-            thing = this.grid.cells.get(make_cell_id({ x, y }));
+            id = make_cell_id({ x, y });
         }
 
-        if(thing != null) {
-            if(left_click && thing.state == State.Live) {
-                thing.state = State.Unknown;
-            } else if(left_click && thing.state == State.Unknown) {
-                thing.state = State.Live;
-            } else if(!left_click && thing.state == State.Dead) {
-                thing.state = State.Unknown;
-            } else if(!left_click && thing.state == State.Unknown) {
-                thing.state = State.Dead;
+        if(id != null) {
+            const status = this.solver.statuses.get(id);
+            if(status != null) {
+                if(left_click && status == Status.Live) {
+                    this.solver.statuses.set(id, Status.Unknown);
+                } else if(left_click && status == Status.Unknown) {
+                    this.solver.statuses.set(id, Status.Live);
+                } else if(!left_click && status == Status.Dead) {
+                    this.solver.statuses.set(id, Status.Unknown);
+                } else if(!left_click && status == Status.Unknown) {
+                    this.solver.statuses.set(id, Status.Dead);
+                }
             }
         }
     }
@@ -133,34 +136,11 @@ export class View {
         }
 
         for(const cell of this.grid.cells.values()) {
-            const x = cell.pos.x;
-            const y = cell.pos.y;
-
-            const px = x * (cell_diameter + link_diameter);
-            const py = y * (cell_diameter + link_diameter);
-
-            this.draw_cell(context, px, py, cell.state, this.grid.dirty_cells.has(cell.id));
+            this.draw_cell(context, cell);
         }
 
         for(const link of this.grid.links.values()) {
-            const x = link.pos.x;
-            const y = link.pos.y;
-            const direction = link.direction;
-
-            const px = x * (cell_diameter + link_diameter);
-            const py = y * (cell_diameter + link_diameter);
-
-            switch(direction) {
-                case Direction.East: {
-                    this.draw_link(context, px + cell_diameter, py, direction, link.state, this.grid.dirty_links.has(link.id));
-                    break;
-                }
-
-                case Direction.South: {
-                    this.draw_link(context, px, py + cell_diameter, direction, link.state, this.grid.dirty_links.has(link.id));
-                    break;
-                }
-            }
+            this.draw_link(context, link);
         }
     }
 
@@ -175,36 +155,27 @@ export class View {
             ? this.cell_radius
             : hint.index * (cell_diameter + link_diameter) + this.cell_radius;
 
+        const is_candidate = this.solver.candidates.has(hint.id);
+
         // states of a hint can be:
         //  - violation
         //  - sated
         //  - nigh
         //  - neutral
 
-        let num_live_cells = 0;
-        let num_unknown_cells = 0;
-        let num_dead_cells = 0;
-
-        for(const cell of hint.cells) {
-            switch(cell.state) {
-                case State.Live: ++num_live_cells; break;
-                case State.Unknown: ++num_unknown_cells; break;
-                case State.Dead: ++num_dead_cells; break;
-            }
-        }
-
         const num_cells = hint.cells.length;
+        const [live_cells, unknown_cells, dead_cells] = this.solver.split_cells(hint.cells);
 
         let hint_color = '#000000'; // neutral
-        if((num_cells - num_dead_cells) < hint.value) {
+        if((num_cells - dead_cells.length) < hint.value) {
             hint_color = '#aa0000'; // violation
-        } else if(num_live_cells > hint.value) {
+        } else if(live_cells.length > hint.value) {
             hint_color = '#aa0000'; // violation
-        } else if(num_live_cells == hint.value && num_unknown_cells == 0) {
+        } else if(live_cells.length == hint.value && unknown_cells.length == 0) {
             hint_color = '#999999'; // satiated
-        } else if(this.grid.dirty_hints.has(hint.id)) {
-            hint_color = '#00aa22'; // open
-        //} else if(num_live_cells == hint.value - 1) {
+        } else if(is_candidate) {
+            hint_color = '#00aa22'; // candidate
+        //} else if(live_cells.length == hint.value - 1) {
             //hint_color = '#44ff44'; // nigh
         }
 
@@ -219,8 +190,18 @@ export class View {
         context.fillText(value.toString(), px, py);
     }
 
-    draw_cell(context: CanvasRenderingContext2D, px: number, py: number, state: State, is_dirty: boolean) {
+    draw_cell(context: CanvasRenderingContext2D, cell: Cell) {
         const cell_diameter = this.cell_radius * 2;
+        const link_diameter = this.link_radius * 2;
+
+        const x = cell.pos.x;
+        const y = cell.pos.y;
+
+        const px = x * (cell_diameter + link_diameter);
+        const py = y * (cell_diameter + link_diameter);
+
+        const status = this.solver.statuses.get(cell.id)!;
+        const is_candidate = this.solver.candidates.has(cell.id);
 
         const gradient = context.createRadialGradient(
             px + this.cell_radius,
@@ -230,15 +211,15 @@ export class View {
             py + this.cell_radius,
             this.cell_radius);
 
-        if(state == State.Dead) {
+        if(status == Status.Dead) {
             gradient.addColorStop(0, "#ddeeff");
-        } else if(state == State.Unknown && is_dirty) {
+        } else if(status == Status.Unknown && is_candidate) {
             gradient.addColorStop(0, "#00aa22");
         } else {
             gradient.addColorStop(0, "#8899dd");
         }
 
-        if(state != State.Live) {
+        if(status != Status.Live) {
             gradient.addColorStop(1, "#ddeeff");
         } else {
             gradient.addColorStop(1, "#8899dd");
@@ -248,9 +229,24 @@ export class View {
         context.fillRect(px, py, cell_diameter, cell_diameter);
     }
 
-    draw_link(context: CanvasRenderingContext2D, px: number, py: number, direction: Direction, state: State, is_dirty: boolean) {
+    draw_link(context: CanvasRenderingContext2D, link: Link) {
         const cell_diameter = this.cell_radius * 2;
         const link_diameter = this.link_radius * 2;
+
+        const x = link.pos.x;
+        const y = link.pos.y;
+        const direction = link.direction;
+
+        let px = x * (cell_diameter + link_diameter);
+        let py = y * (cell_diameter + link_diameter);
+
+        switch(direction) {
+            case Direction.South: py += cell_diameter; break;
+            case Direction.East: px += cell_diameter; break;
+        }
+
+        const status = this.solver.statuses.get(link.id)!;
+        const is_candidate = this.solver.candidates.has(link.id);
 
         let gradient;
         if(direction == Direction.South) {
@@ -271,15 +267,15 @@ export class View {
                 this.link_radius);
         }
 
-        if(state == State.Dead) {
+        if(status == Status.Dead) {
             gradient.addColorStop(0, "#ffeedd");
-        } else if(state == State.Unknown && is_dirty) {
+        } else if(status == Status.Unknown && is_candidate) {
             gradient.addColorStop(0, "#00aa22");
         } else {
             gradient.addColorStop(0, "#dd9988");
         }
 
-        if(state != State.Live) {
+        if(status != Status.Live) {
             gradient.addColorStop(1, "#ffeedd");
         } else {
             gradient.addColorStop(1, "#dd9988");
@@ -294,15 +290,16 @@ export class View {
     }
 
     solve_step() {
-        for(const action of this.solver.process()) {
-            action.execute(this.grid);
+        const action = this.solver.process();
+        if(action) {
+            action.execute(this.solver);
+            this.redraw();
         }
-        this.redraw();
     }
 
     parse() {
         const code = (document.getElementById('code') as HTMLInputElement).value;
-        this.set_grid(parse_grid(code));
+        this.set_solver(parse_code(code));
     }
 }
 

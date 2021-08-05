@@ -37,19 +37,19 @@ function west(pos: Pos) : Pos {
 export type CellId = Id;
 
 export function make_cell_id(pos: Pos): CellId {
-    return JSON.stringify(pos);
+    return 'c' + JSON.stringify(pos);
 }
 
 export type LinkId = Id;
 
 export function make_link_id(pos: Pos, direction: Direction): LinkId {
-    return JSON.stringify({ pos, direction });
+    return 'l' + JSON.stringify({ pos, direction });
 }
 
 export type HintId = Id;
 
 export function make_hint_id(index: Index, direction: Direction): HintId {
-    return JSON.stringify({ index, direction });
+    return 'h' + JSON.stringify({ index, direction });
 }
 
 export type LinkContent = {
@@ -292,101 +292,4 @@ export function make_grid(cx: Index, cy: Index, live_links: Array<LinkContent>, 
     }
 
     return builder.build();
-}
-
-function parse_links(cx: number, input: string) : Array<LinkId> {
-    /*
-        4x4:h5d9b,3,S4,3,3,4,3,S4,2
-        4x4:d5gAc,S3,3,3,4,3,S3,4,3
-        4x4:5kAc,S4,3,4,3,S3,4,4,3
-        4x4:aCj6bC,4,4,4,S4,4,4,4,S4
-
-        lowercase letter, a-z: skip that many cells
-        hex digit (0-9, A-F): the cell's live links are encoded like so:
-
-        #define R 1
-        #define U 2
-        #define L 4
-        #define D 8
-     */
-
-    let links = new Array();
-
-    let i = 0;
-    for(const c of input) {
-        const code = c.charCodeAt(0);
-
-        if(code >= 97 && code <= 122) { // ascii 'a' to 'z'
-            i += 1 + code - 97; // skip that many cells
-        } else {
-            let n = 0;
-
-            if(code >= 48 && code <= 57) { // ascii '0' to '9'
-                n = code - 48;
-            } else if(code >= 65 && code <= 70) { // ascii 'A' to 'F'
-                n = 10 + code - 65;
-            } else {
-                throw new Error('what');
-            }
-
-            const x = i % cx;
-            const y = (i - x) / cx;
-
-            if(n & 1) {
-                // East
-                links.push(make_link_id({ x: x + 1, y: y + 1 }, Direction.East));
-            }
-
-            if(n & 2) {
-                // North
-                links.push(make_link_id({ x: x + 1, y }, Direction.South));
-            }
-
-            if(n & 4) {
-                // West
-                links.push(make_link_id({ x, y: y + 1 }, Direction.East));
-            }
-
-            if(n & 8) {
-                // South
-                links.push(make_link_id({ x: x + 1, y: y + 1 }, Direction.South));
-            }
-
-            ++i;
-        }
-    }
-
-    return links;
-}
-
-function parse_hints(cx: number, input: string) : Array<HintContent> {
-    const hints_matcher = /,(S?)(\d+)/g;
-    const hint_contents = new Array();
-
-    let i = 0;
-    let hint;
-
-    while(hint = hints_matcher.exec(input)) {
-        const value = parseInt(hint[2]);
-        if(i < cx) {
-            hint_contents.push({ index: i + 1, direction: Direction.South, value });
-        } else {
-            hint_contents.push({ index: i + 1 - cx, direction: Direction.East, value });
-        }
-        ++i;
-    }
-
-    return hint_contents;
-}
-
-export function parse_grid(input: string): Grid {
-    const params_matcher = /(\d+)x(\d+):([0-9a-zA-F]+)((,S?\d+)+)/;
-    const params = input.match(params_matcher)!;
-
-    const cx = parseInt(params[1]);
-    const cy = parseInt(params[2]);
-    const live_links = parse_links(cx, params[3]);
-    const hints = parse_hints(cx, params[4]);
-
-    return make_grid(cx, cy, live_links, hints);
 }

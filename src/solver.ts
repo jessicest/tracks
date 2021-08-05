@@ -4,10 +4,15 @@ import {
     Direction,
     Grid,
     Hint,
+    HintContent,
+    Id,
     Index,
     Link,
-    LinkId
-} from './grid';
+    LinkContent,
+    LinkId,
+    make_grid,
+    make_link_id
+} from './grid.js';
 
 export const enum Status {
     Live,
@@ -62,9 +67,9 @@ class SetLinkStatus implements Action {
     execute(solver: Solver) {
         console.log('link ' + this.link.id + ' -> ' + this.new_status + '; ' + this.reason);
 
-        const [live_cells, unknown_cells, _dead_cells] = split_cells(this.link.cells);
+        const [live_cells, unknown_cells, _dead_cells] = solver.split_cells(this.link.cells);
         for(const cell of unknown_cells) {
-            solver.candidates.add(this.cell.id);
+            solver.candidates.add(cell.id);
         }
 
         solver.statuses.set(this.link.id, this.new_status);
@@ -85,7 +90,7 @@ class SetLinkStatus implements Action {
         const [live_links, _unknown_links, _dead_links] = solver.split_links(cell.links);
         for(const link of live_links) {
             const link_chain_id = solver.link_chains.get(link.id)!;
-            if(link.chain_id == chain_id) {
+            if(link_chain_id == chain_id) {
                 continue;
             }
 
@@ -100,12 +105,12 @@ class SetLinkStatus implements Action {
 }
 
 class Fail implements Action {
-    execute(grid: Grid) {
+    execute(solver: Solver) {
         throw new Error("failure executed!");
     }
 }
 
-function process_hint(solver: Solver, hint: Hint) : Array<Action> {
+function process_hint(solver: Solver, hint: Hint) : Action | null {
     const [live_cells, unknown_cells, dead_cells] = solver.split_cells(hint.cells);
 
     if(unknown_cells.length > 0) {
@@ -128,10 +133,10 @@ function process_hint(solver: Solver, hint: Hint) : Array<Action> {
     return null;
 }
 
-function process_link(solver: Solver, link: Link) : Array<Action> {
+function process_link(solver: Solver, link: Link) : Action | null {
     const status = solver.statuses.get(link.id);
     if(status == Status.Unknown) {
-        const [live_cells, unknown_cells, dead_cells] = split_cells(link.cells);
+        const [live_cells, unknown_cells, dead_cells] = solver.split_cells(link.cells);
 
         if(live_cells.length) {
             return new SetLinkStatus(link, Status.Live, reason("cell->link ignition", live_cells[0].id));
@@ -194,27 +199,29 @@ export class Solver {
 
     constructor(grid: Grid) {
         this.grid = grid;
+        this.candidates = new Set();
         this.statuses = new Map();
+        this.link_chains = new Map();
 
         for(const id of grid.cells.keys()) {
-            statuses.set(id, Status.Curious);
+            this.candidates.add(id);
+            this.statuses.set(id, Status.Unknown);
         }
         for(const id of grid.links.keys()) {
-            statuses.set(id, Status.Curious);
+            this.candidates.add(id);
+            this.statuses.set(id, Status.Unknown);
+            this.link_chains.set(id, id);
         }
         for(const id of grid.hints.keys()) {
-            statuses.set(id, Status.Curious);
+            this.candidates.add(id);
+            this.statuses.set(id, Status.Unknown);
         }
     }
 
     solve() {
         while(true) {
-            const actions = this.process();
-            if(!actions.length) {
-                break;
-            }
-
-            for(const action of actions) {
+            const action = this.process();
+            if(action) {
                 action.execute(this);
             }
             console.log('.');
@@ -271,6 +278,115 @@ export class Solver {
 
         return result;
     }
+}
+
+function parse_links(cx: number, input: string) : Array<LinkContent> {
+    /*
+        4x4:h5d9b,3,S4,3,3,4,3,S4,2
+        4x4:d5gAc,S3,3,3,4,3,S3,4,3
+        4x4:5kAc,S4,3,4,3,S3,4,4,3
+        4x4:aCj6bC,4,4,4,S4,4,4,4,S4
+
+        lowercase letter, a-z: skip that many cells
+        hex digit (0-9, A-F): the cell's live links are encoded like so:
+
+        #define R 1
+        #define U 2
+        #define L 4
+        #define D 8
+     */
+
+    let link_contents = new Array();
+
+    let i = 0;
+    for(const c of input) {
+        const code = c.charCodeAt(0);
+
+        if(code >= 97 && code <= 122) { // ascii 'a' to 'z'
+            i += 1 + code - 97; // skip that many cells
+        } else {
+            let n = 0;
+
+            if(code >= 48 && code <= 57) { // ascii '0' to '9'
+                n = code - 48;
+            } else if(code >= 65 && code <= 70) { // ascii 'A' to 'F'
+                n = 10 + code - 65;
+            } else {
+                throw new Error('what');
+            }
+
+            const x = i % cx;
+            const y = (i - x) / cx;
+
+            if(n & 1) {
+                // East
+                link_contents.push({ pos: { x: x + 1, y: y + 1 }, direction: Direction.East });
+            }
+
+            if(n & 2) {
+                // North
+                link_contents.push({ pos: { x: x + 1, y }, direction: Direction.South });
+            }
+
+            if(n & 4) {
+                // West
+                link_contents.push({ pos: { x, y: y + 1 }, direction: Direction.East });
+            }
+
+            if(n & 8) {
+                // South
+                link_contents.push({ pos: { x: x + 1, y: y + 1 }, direction: Direction.South });
+            }
+
+            ++i;
+        }
+    }
+
+    return link_contents;
+}
+
+function parse_hints(cx: number, input: string) : Array<HintContent> {
+    const hints_matcher = /,(S?)(\d+)/g;
+    const hint_contents = new Array();
+
+    let i = 0;
+    let hint;
+
+    while(hint = hints_matcher.exec(input)) {
+        const value = parseInt(hint[2]);
+        if(i < cx) {
+            hint_contents.push({ index: i + 1, direction: Direction.South, value });
+        } else {
+            hint_contents.push({ index: i + 1 - cx, direction: Direction.East, value });
+        }
+        ++i;
+    }
+
+    return hint_contents;
+}
+
+export function parse_code(input: string): Solver {
+    const params_matcher = /(\d+)x(\d+):([0-9a-zA-F]+)((,S?\d+)+)/;
+    const params = input.match(params_matcher)!;
+
+    const cx = parseInt(params[1]);
+    const cy = parseInt(params[2]);
+    const live_links = parse_links(cx, params[3]);
+    const hints = parse_hints(cx, params[4]);
+
+    return make_solver(cx, cy, live_links, hints);
+}
+
+export function make_solver(cx: Index, cy: Index, live_links: Array<LinkContent>, hint_contents: Array<HintContent>): Solver {
+    const grid = make_grid(cx, cy, live_links, hint_contents);
+    const solver = new Solver(grid);
+
+    for(const link_content of live_links) {
+        const id = make_link_id(link_content.pos, link_content.direction);
+        solver.statuses.set(id, Status.Live);
+    }
+
+    return solver;
 }
 
 /*

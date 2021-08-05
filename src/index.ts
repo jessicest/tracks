@@ -1,22 +1,16 @@
 
 import {
-    Cell,
     Direction,
     Grid,
-    Hint,
     Index,
-    Link,
-    LinkId,
-    State,
+    LinkContent,
     make_grid,
     make_hints,
     make_link_id
 } from './grid.js';
 
 import {
-    GridSolver,
-    split_cells,
-    split_links
+    Solver
 } from './solver.js';
 
 /*
@@ -42,21 +36,21 @@ other advanced rule:
  - when we can only just reach
 */
 
-function describe_grid(grid: Grid): string {
+function to_string(solver: Solver): string {
     let output = '';
 
-    const [live_cells, unknown_cells, dead_cells] = split_cells(Array.from(grid.cells.values()));
+    const [live_cells, unknown_cells, dead_cells] = solver.split_cells(Array.from(solver.grid.cells.values()));
     output += 'cell counts: (' + live_cells.length + ', ' + unknown_cells.length + ', ' + dead_cells.length + ')\n';
 
-    const [live_links, unknown_links, dead_links] = split_links(Array.from(grid.links.values()));
+    const [live_links, unknown_links, dead_links] = solver.split_links(Array.from(solver.grid.links.values()));
     output += 'link counts: (' + live_links.length + ', ' + unknown_links.length + ', ' + dead_links.length + ')\n';
 
     return output;
 }
 
 function main() {
-    function link(x: Index, y: Index, south: boolean): LinkId {
-        return make_link_id({ x, y }, south ? Direction.South : Direction.East);
+    function link(x: Index, y: Index, south: boolean): LinkContent {
+        return { pos: { x, y }, direction: south ? Direction.South : Direction.East };
     }
 
     /*
@@ -92,12 +86,13 @@ function main() {
         make_hints([7,8,8,7,6,4,5,2], [8,7,5,6,7,5,5,4])
     );
 
-    console.log(describe_grid(grid));
+    const solver = new Solver(grid);
+    console.log(to_string(solver));
 
-    new GridSolver(grid).solve();
+    solver.solve();
 
     console.log();
-    console.log(describe_grid(grid));
+    console.log(to_string(solver));
 }
 
 main();
