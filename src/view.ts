@@ -164,10 +164,10 @@ export class View {
         //  - neutral
 
         const num_cells = hint.cells.length;
-        const [live_cells, unknown_cells, dead_cells] = this.solver.split_cells(hint.cells);
+        const [live_cells, unknown_cells] = this.solver.split_cells(hint.cells);
 
         let hint_color = '#000000'; // neutral
-        if((num_cells - dead_cells.length) < hint.value) {
+        if(live_cells.length + unknown_cells.length < hint.value) {
             hint_color = '#aa0000'; // violation
         } else if(live_cells.length > hint.value) {
             hint_color = '#aa0000'; // violation
@@ -269,7 +269,7 @@ export class View {
 
         if(status == Status.Dead) {
             gradient.addColorStop(0, "#ffeedd");
-        } else if(status == Status.Unknown && is_candidate) {
+        } else if(is_candidate) {
             gradient.addColorStop(0, "#00aa22");
         } else {
             gradient.addColorStop(0, "#dd9988");

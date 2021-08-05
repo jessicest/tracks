@@ -39,11 +39,11 @@ other advanced rule:
 function to_string(solver: Solver): string {
     let output = '';
 
-    const [live_cells, unknown_cells, dead_cells] = solver.split_cells(Array.from(solver.grid.cells.values()));
-    output += 'cell counts: (' + live_cells.length + ', ' + unknown_cells.length + ', ' + dead_cells.length + ')\n';
+    const [live_cells, unknown_cells] = solver.split_cells(Array.from(solver.grid.cells.values()));
+    output += 'cell counts: (' + live_cells.length + ', ' + unknown_cells.length + ', ' + solver.grid.cells.size + ')\n';
 
-    const [live_links, unknown_links, dead_links] = solver.split_links(Array.from(solver.grid.links.values()));
-    output += 'link counts: (' + live_links.length + ', ' + unknown_links.length + ', ' + dead_links.length + ')\n';
+    const [live_links, unknown_links] = solver.split_links(Array.from(solver.grid.links.values()));
+    output += 'link counts: (' + live_links.length + ', ' + unknown_links.length + ', ' + solver.grid.links.size + ')\n';
 
     return output;
 }
