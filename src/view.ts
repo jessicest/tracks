@@ -15,6 +15,7 @@ import {
 } from './grid.js';
 
 import {
+    Action,
     SetCellStatus,
     SetLinkStatus,
     Solver,
@@ -129,12 +130,17 @@ export class View {
 
             if(new_status != null) {
                 if(is_link) {
-                    new SetLinkStatus(this.solver.grid.links.get(id)!, new_status, "click").execute(this.solver);
+                    this.execute(new SetLinkStatus(this.solver.grid.links.get(id)!, new_status, "click"));
                 } else {
-                    new SetCellStatus(this.solver.grid.cells.get(id)!, new_status, "click").execute(this.solver);
+                    this.execute(new SetCellStatus(this.solver.grid.cells.get(id)!, new_status, "click"));
                 }
             }
         }
+    }
+
+    execute(action: Action) {
+        const modified_ids = action.execute(this.solver);
+        this.redraw_selection(modified_ids);
     }
 
     get_state(id: Id): [Status, boolean, boolean] {
@@ -155,9 +161,6 @@ export class View {
 
         context.clearRect(0, 0, this.canvas.width, this.canvas.height);
 
-        const cell_diameter = this.cell_radius * 2;
-        const link_diameter = this.link_radius * 2;
-
         for(const hint of this.grid.hints.values()) {
             this.draw_hint(context, hint);
         }
@@ -168,6 +171,27 @@ export class View {
 
         for(const link of this.grid.links.values()) {
             this.draw_link(context, link);
+        }
+    }
+
+    redraw_selection(ids: Array<Id>) {
+        const context = this.canvas.getContext("2d");
+
+        for(const id of ids) {
+            const hint = this.grid.hints.get(id);
+            if(hint != null) {
+                this.draw_hint(context, hint);
+            }
+
+            const cell = this.grid.cells.get(id);
+            if(cell != null) {
+                this.draw_cell(context, cell);
+            }
+
+            const link = this.grid.links.get(id);
+            if(link != null) {
+                this.draw_link(context, link);
+            }
         }
     }
 
@@ -315,8 +339,7 @@ export class View {
     solve_step(): boolean {
         const action = this.solver.process();
         if(action) {
-            action.execute(this.solver);
-            this.redraw();
+            this.execute(action);
             return true;
         } else {
             return false;
@@ -326,11 +349,8 @@ export class View {
     auto_solve_step() {
         function step() {
             const solve_rate = parseInt((document.getElementById('solve_rate') as HTMLInputElement).value);
-            const action = window.view.solver.process();
-            if(action != null) {
-                action.execute(window.view.solver);
+            if(window.view.solve_step()) {
                 window.view.auto_solver = setTimeout(step, 1001 - solve_rate);
-                window.view.redraw();
             } else {
                 window.view.auto_solve_stop();
             }

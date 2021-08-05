@@ -20,8 +20,8 @@ export const enum Status {
     Dead,
 }
 
-interface Action {
-    execute(solver: Solver): void;
+export interface Action {
+    execute(solver: Solver): Array<Id>;
 }
 
 function reason(label: string, id: string): string {
@@ -35,9 +35,10 @@ class RepealCandidacy implements Action {
         this.id = id;
     }
 
-    execute(solver: Solver) {
+    execute(solver: Solver): Array<Id> {
         console.log('clear: ' + this.id);
         solver.candidates.delete(this.id);
+        return [this.id];
     }
 }
 
@@ -52,22 +53,29 @@ export class SetCellStatus implements Action {
         this.reason = reason;
     }
 
-    execute(solver: Solver) {
+    execute(solver: Solver): Array<Id> {
         console.log('cell ' + this.cell.id + ' -> ' + this.new_status + '; ' + this.reason);
+        const modified_ids = new Array();
+
         solver.statuses.set(this.cell.id, this.new_status);
-        if(this.new_status != Status.Dead || this.reason == "click") {
-            solver.candidates.add(this.cell.id);
-        } else {
-            solver.candidates.delete(this.cell.id);
-        }
+        modified_ids.push(this.cell.id);
 
         const [_live_links, unknown_links] = solver.split_links(this.cell.links);
         for(const link of unknown_links) {
-            solver.candidates.add(link.id);
+            modified_ids.push(link.id);
         }
         for(const hint of this.cell.hints) {
-            solver.candidates.add(hint.id);
+            modified_ids.push(hint.id);
         }
+
+        for(const id of modified_ids) {
+            solver.candidates.add(id);
+        }
+        if(this.new_status == Status.Dead && this.reason != "click") {
+            solver.candidates.delete(this.cell.id);
+        }
+
+        return modified_ids;
     }
 }
 
@@ -82,37 +90,42 @@ export class SetLinkStatus implements Action {
         this.reason = reason;
     }
 
-    execute(solver: Solver) {
+    execute(solver: Solver): Array<Id> {
         console.log('link ' + this.link.id + ' -> ' + this.new_status + '; ' + this.reason);
+        const modified_ids = new Array();
 
         const [live_cells, unknown_cells] = solver.split_cells(this.link.cells);
         for(const cell of live_cells) {
-            solver.candidates.add(cell.id);
+            modified_ids.push(cell.id);
         }
         for(const cell of unknown_cells) {
-            solver.candidates.add(cell.id);
+            modified_ids.push(cell.id);
         }
 
         solver.statuses.set(this.link.id, this.new_status);
-        if(this.new_status != Status.Dead || this.reason == "click") {
-            solver.candidates.add(this.link.id);
-        } else {
-            solver.candidates.delete(this.link.id);
-        }
+        modified_ids.push(this.link.id);
 
         if(this.link.hint != null) {
-            solver.candidates.add(this.link.hint.id);
+            modified_ids.push(this.link.hint.id);
         }
 
         if(this.new_status == Status.Live) {
             for(const cell of this.link.cells) {
-                this.propagate_chain_id(solver, cell, solver.link_chains.get(this.link.id)!);
+                this.propagate_chain_id(solver, cell, solver.link_chains.get(this.link.id)!, modified_ids);
             }
         }
+
+        for(const id of modified_ids) {
+            solver.candidates.add(id);
+        }
+        if(this.new_status == Status.Dead && this.reason != "click") {
+            solver.candidates.delete(this.link.id);
+        }
+        return modified_ids;
     }
 
     // For every connected live link, set its chain id to match
-    propagate_chain_id(solver: Solver, cell: Cell, chain_id: LinkId) {
+    propagate_chain_id(solver: Solver, cell: Cell, chain_id: LinkId, modified_ids: Array<Id>) {
         const [live_links, _unknown_links] = solver.split_links(cell.links);
         for(const link of live_links) {
             const link_chain_id = solver.link_chains.get(link.id)!;
@@ -121,17 +134,17 @@ export class SetLinkStatus implements Action {
             }
 
             solver.link_chains.set(link.id, chain_id);
-            solver.candidates.add(link.id);
+            modified_ids.push(link.id);
 
             for(const neighbor of link.cells) {
-                this.propagate_chain_id(solver, neighbor, chain_id);
+                this.propagate_chain_id(solver, neighbor, chain_id, modified_ids);
             }
         }
     }
 }
 
 class Fail implements Action {
-    execute(solver: Solver) {
+    execute(solver: Solver): Array<Id> {
         throw new Error("failure executed!");
     }
 }
