@@ -4,6 +4,7 @@ import {
     Direction,
     Grid,
     Hint,
+    Id,
     Index,
     Link,
     Pos,
@@ -123,6 +124,19 @@ export class View {
         }
     }
 
+    get_state(id: Id): [Status, boolean, boolean] {
+        const status = this.solver.statuses.get(id)!;
+        const is_candidate = this.solver.candidates.has(id);
+        for(const candidate of this.solver.candidates) {
+            if(candidate == id) {
+                return [status, is_candidate, true];
+            } else {
+                break;
+            }
+        }
+        return [status, is_candidate, false];
+    }
+
     redraw() {
         const context = this.canvas.getContext("2d");
 
@@ -149,13 +163,11 @@ export class View {
         const link_diameter = this.link_radius * 2;
 
         const px = (hint.direction == Direction.East)
-            ? this.cell_radius
-            : hint.index * (cell_diameter + link_diameter) + this.cell_radius;
+            ? 0
+            : hint.index * (cell_diameter + link_diameter);
         const py = (hint.direction == Direction.South)
-            ? this.cell_radius
-            : hint.index * (cell_diameter + link_diameter) + this.cell_radius;
-
-        const is_candidate = this.solver.candidates.has(hint.id);
+            ? 0
+            : hint.index * (cell_diameter + link_diameter);
 
         // states of a hint can be:
         //  - violation
@@ -163,31 +175,52 @@ export class View {
         //  - nigh
         //  - neutral
 
+        const [_status, is_candidate, is_next_candidate] = this.get_state(hint.id);
+
         const num_cells = hint.cells.length;
         const [live_cells, unknown_cells] = this.solver.split_cells(hint.cells);
 
-        let hint_color = '#000000'; // neutral
+        let text_color = '#000000'; // neutral
+        let inner_color = '#ffffff'; // neutral
+        let outer_color = '#ffffff'; // neutral
+
         if(live_cells.length + unknown_cells.length < hint.value) {
-            hint_color = '#aa0000'; // violation
+            text_color = '#aa0000'; // violation
         } else if(live_cells.length > hint.value) {
-            hint_color = '#aa0000'; // violation
-        } else if(live_cells.length == hint.value && unknown_cells.length == 0) {
-            hint_color = '#999999'; // satiated
+            text_color = '#aa0000'; // violation
+        } else if(is_next_candidate) {
+            inner_color = '#ffaa22'; // candidate
         } else if(is_candidate) {
-            hint_color = '#00aa22'; // candidate
-        //} else if(live_cells.length == hint.value - 1) {
-            //hint_color = '#44ff44'; // nigh
+            inner_color = '#00aa22'; // candidate
+        } else if(live_cells.length == hint.value && unknown_cells.length == 0) {
+            text_color = '#999999'; // satiated
         }
 
-        this.draw_hint_value(context, px, py, hint.value, hint_color);
+        this.draw_gradient(context, px, py, this.cell_radius, this.cell_radius, inner_color, outer_color);
+        this.draw_text(context, px + this.cell_radius, py + this.cell_radius, hint.value.toString(), text_color);
     }
 
-    draw_hint_value(context: CanvasRenderingContext2D, px: number, py: number, value: number, color: string) {
+    draw_gradient(context: CanvasRenderingContext2D, px: number, py: number, cx: number, cy: number, inner_color: string, outer_color: string) {
+        const gradient = context.createRadialGradient(
+            px + cx,
+            py + cy,
+            1,
+            px + cx,
+            py + cy,
+            Math.min(cx, cy));
+
+        gradient.addColorStop(0, inner_color);
+        gradient.addColorStop(1, outer_color);
+        context.fillStyle = gradient;
+        context.fillRect(px, py, cx * 2, cy * 2);
+    }
+
+    draw_text(context: CanvasRenderingContext2D, px: number, py: number, value: string, color: string) {
         context.font = '20px Tahoma';
         context.fillStyle = color;
         context.textAlign = 'center';
         context.textBaseline = 'middle';
-        context.fillText(value.toString(), px, py);
+        context.fillText(value, px, py);
     }
 
     draw_cell(context: CanvasRenderingContext2D, cell: Cell) {
@@ -200,33 +233,26 @@ export class View {
         const px = x * (cell_diameter + link_diameter);
         const py = y * (cell_diameter + link_diameter);
 
-        const status = this.solver.statuses.get(cell.id)!;
-        const is_candidate = this.solver.candidates.has(cell.id);
+        const [status, is_candidate, is_next_candidate] = this.get_state(cell.id);
 
-        const gradient = context.createRadialGradient(
-            px + this.cell_radius,
-            py + this.cell_radius,
-            1,
-            px + this.cell_radius,
-            py + this.cell_radius,
-            this.cell_radius);
-
+        let inner_color, outer_color;
         if(status == Status.Dead) {
-            gradient.addColorStop(0, "#ddeeff");
+            inner_color = "#ddeeff";
+        } else if(is_next_candidate) {
+            inner_color = "#ffaa22";
         } else if(is_candidate) {
-            gradient.addColorStop(0, "#00aa22");
+            inner_color = "#00aa22";
         } else {
-            gradient.addColorStop(0, "#8899dd");
+            inner_color = "#8899dd";
         }
 
         if(status != Status.Live) {
-            gradient.addColorStop(1, "#ddeeff");
+            outer_color = "#ddeeff";
         } else {
-            gradient.addColorStop(1, "#8899dd");
+            outer_color = "#8899dd";
         }
 
-        context.fillStyle = gradient;
-        context.fillRect(px, py, cell_diameter, cell_diameter);
+        this.draw_gradient(context, px, py, this.cell_radius, this.cell_radius, inner_color, outer_color);
     }
 
     draw_link(context: CanvasRenderingContext2D, link: Link) {
@@ -237,56 +263,40 @@ export class View {
         const y = link.pos.y;
         const direction = link.direction;
 
-        let px = x * (cell_diameter + link_diameter);
-        let py = y * (cell_diameter + link_diameter);
-
-        switch(direction) {
-            case Direction.South: py += cell_diameter; break;
-            case Direction.East: px += cell_diameter; break;
-        }
-
-        const status = this.solver.statuses.get(link.id)!;
-        const is_candidate = this.solver.candidates.has(link.id);
-
-        let gradient;
+        let px, py, cx, cy;
         if(direction == Direction.South) {
-            gradient = context.createRadialGradient(
-                px + this.cell_radius,
-                py + this.link_radius,
-                1,
-                px + this.cell_radius,
-                py + this.link_radius,
-                this.link_radius);
+            px = x * (cell_diameter + link_diameter);
+            py = y * (cell_diameter + link_diameter) + cell_diameter;
+            cx = this.cell_radius;
+            cy = this.link_radius;
         } else {
-            gradient = context.createRadialGradient(
-                px + this.link_radius,
-                py + this.cell_radius,
-                1,
-                px + this.link_radius,
-                py + this.cell_radius,
-                this.link_radius);
+            px = x * (cell_diameter + link_diameter) + cell_diameter;
+            py = y * (cell_diameter + link_diameter);
+            cx = this.link_radius;
+            cy = this.cell_radius;
         }
+
+        const [status, is_candidate, is_next_candidate] = this.get_state(link.id);
+
+        let inner_color, outer_color;
 
         if(status == Status.Dead) {
-            gradient.addColorStop(0, "#ffeedd");
+            inner_color = "#ffeedd";
+        } else if(is_next_candidate) {
+            inner_color = "#ffaa22";
         } else if(is_candidate) {
-            gradient.addColorStop(0, "#00aa22");
+            inner_color = "#00aa22";
         } else {
-            gradient.addColorStop(0, "#dd9988");
+            inner_color = "#dd9988";
         }
 
         if(status != Status.Live) {
-            gradient.addColorStop(1, "#ffeedd");
+            outer_color = "#ffeedd";
         } else {
-            gradient.addColorStop(1, "#dd9988");
+            outer_color = "#dd9988";
         }
 
-        context.fillStyle = gradient;
-        if(direction == Direction.South) {
-            context.fillRect(px, py, cell_diameter, link_diameter);
-        } else {
-            context.fillRect(px, py, link_diameter, cell_diameter);
-        }
+        this.draw_gradient(context, px, py, cx, cy, inner_color, outer_color);
     }
 
     solve_step() {

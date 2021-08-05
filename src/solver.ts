@@ -260,21 +260,19 @@ export class Solver {
     }
 
     process() : Action | null {
-        while(this.candidates.size) {
-            for(const id of this.candidates) {
-                let result = null;
-                switch(id.charAt(0)) {
-                    case 'c': result = process_cell(this, this.grid.cells.get(id)!); break;
-                    case 'l': result = process_link(this, this.grid.links.get(id)!); break;
-                    case 'h': result = process_hint(this, this.grid.hints.get(id)!); break;
-                    default: throw 'bad id format: ' + id;
-                }
+        for(const id of this.candidates) {
+            let result = null;
+            switch(id.charAt(0)) {
+                case 'c': result = process_cell(this, this.grid.cells.get(id)!); break;
+                case 'l': result = process_link(this, this.grid.links.get(id)!); break;
+                case 'h': result = process_hint(this, this.grid.hints.get(id)!); break;
+                default: throw 'bad id format: ' + id;
+            }
 
-                if(result != null) {
-                    return result;
-                } else {
-                    return new RepealCandidacy(id);
-                }
+            if(result != null) {
+                return result;
+            } else {
+                return new RepealCandidacy(id);
             }
         }
         return null;
