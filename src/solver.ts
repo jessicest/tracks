@@ -57,6 +57,8 @@ class SetCellStatus implements Action {
         solver.statuses.set(this.cell.id, this.new_status);
         if(this.new_status == Status.Dead) {
             solver.candidates.delete(this.cell.id);
+        } else {
+            solver.candidates.add(this.cell.id);
         }
 
         const [_live_links, unknown_links] = solver.split_links(this.cell.links);
@@ -84,6 +86,9 @@ class SetLinkStatus implements Action {
         console.log('link ' + this.link.id + ' -> ' + this.new_status + '; ' + this.reason);
 
         const [live_cells, unknown_cells] = solver.split_cells(this.link.cells);
+        for(const cell of live_cells) {
+            solver.candidates.add(cell.id);
+        }
         for(const cell of unknown_cells) {
             solver.candidates.add(cell.id);
         }
@@ -91,6 +96,8 @@ class SetLinkStatus implements Action {
         solver.statuses.set(this.link.id, this.new_status);
         if(this.new_status == Status.Dead) {
             solver.candidates.delete(this.link.id);
+        } else {
+            solver.candidates.add(this.link.id);
         }
 
         if(this.link.hint != null) {
@@ -190,12 +197,12 @@ function process_cell(solver: Solver, cell: Cell) : Action | null {
         return new Fail();
     }
 
-    if(unknown_links.length > 0) {
+    if(status == Status.Live && unknown_links.length > 0) {
         if(live_links.length == 2) {
             return new SetLinkStatus(unknown_links[0], Status.Dead, reason("cell->link erasure", cell.id));
         }
 
-        if(live_links.length == 1 && unknown_links.length == 1) {
+        if(live_links.length + unknown_links.length == 2) {
             return new SetLinkStatus(unknown_links[0], Status.Live, reason("cell->link completion", cell.id));
         }
     }
