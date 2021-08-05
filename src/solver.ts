@@ -115,11 +115,11 @@ function process_hint(solver: Solver, hint: Hint) : Action | null {
 
     if(unknown_cells.length > 0) {
         if(live_cells.length == hint.value) {
-            return new SetCellStatus(unknown_cells[0], Status.Dead, reason("hint erasure", unknown_cells[0].id));
+            return new SetCellStatus(unknown_cells[0], Status.Dead, reason("hint erasure", hint.id));
         }
 
         if(live_cells.length + unknown_cells.length == hint.value) {
-            return new SetCellStatus(unknown_cells[0], Status.Live, reason("hint completion", unknown_cells[0].id));
+            return new SetCellStatus(unknown_cells[0], Status.Live, reason("hint completion", hint.id));
         }
 
         if(live_cells.length + unknown_cells.length == hint.value - 1) {
@@ -138,12 +138,8 @@ function process_link(solver: Solver, link: Link) : Action | null {
     if(status == Status.Unknown) {
         const [live_cells, unknown_cells, dead_cells] = solver.split_cells(link.cells);
 
-        if(live_cells.length) {
-            return new SetLinkStatus(link, Status.Live, reason("cell->link ignition", live_cells[0].id));
-        }
-
         if(dead_cells.length) {
-            return new SetLinkStatus(link, Status.Dead, reason("cell->link extinguish", live_cells[0].id));
+            return new SetLinkStatus(link, Status.Dead, reason("cell->link extinguish", dead_cells[0].id));
         }
 
         /*
@@ -170,11 +166,11 @@ function process_cell(solver: Solver, cell: Cell) : Action | null {
 
     if(status == Status.Unknown) {
         if(dead_links.length > 2) {
-            return new SetCellStatus(cell, Status.Dead, reason("cell extinguishment", cell.id));
+            return new SetCellStatus(cell, Status.Dead, reason("cell extinguishment", dead_links[0].id));
         }
 
         if(live_links.length > 0) {
-            return new SetCellStatus(cell, Status.Live, reason("cell ignition", cell.id));
+            return new SetCellStatus(cell, Status.Live, reason("cell ignition", live_links[0].id));
         }
     }
 

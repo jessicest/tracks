@@ -274,8 +274,12 @@ export function make_grid(cx: Index, cy: Index, live_links: Array<LinkContent>, 
     for(const y of range(1, zy)) {
         for(const x of range(1, zx)) {
             const pos = { x, y };
-            builder.add_link(pos, Direction.East);
-            builder.add_link(pos, Direction.South);
+            if(x < cx) {
+                builder.add_link(pos, Direction.East);
+            }
+            if(y < cy) {
+                builder.add_link(pos, Direction.South);
+            }
         }
     }
 
