@@ -97,9 +97,6 @@ export class SetStatus implements Action {
         const modified_ids = new Array();
 
         solver.statuses.set(this.node.id, this.new_status);
-        if(this.new_status == Status.Live) {
-            solver.chains.set(this.node.id, this.node.id);
-        }
 
         const [live_cells, unknown_cells] = solver.split_cells(this.node.cells);
         const [_live_links, unknown_links] = solver.split_links(this.node.links);
@@ -163,17 +160,11 @@ function process_link(solver: Solver, link: Link) : Action | null {
     const status = solver.statuses.get(link.node.id);
     const [live_cells, unknown_cells] = solver.split_cells(link.node.cells);
 
-    if(status == Status.Live) {
-        const link_chain_id = solver.chains.get(link.node.id);
-        if(link_chain_id == undefined) {
-            return new Fail("live link " + link.node.id + " missing chain id");
-        }
+    if(live_cells.length + unknown_cells.length == 2) {
+        const link_chain_id = solver.chains.get(link.node.id)!;
 
-        for(const cell of live_cells) {
-            const cell_chain_id = solver.chains.get(cell.node.id);
-            if(cell_chain_id == undefined) {
-                return new Fail("live cell " + cell.node.id + " of " + link.node.id + " missing chain id");
-            }
+        for(const cell of live_cells.concat(unknown_cells)) {
+            const cell_chain_id = solver.chains.get(cell.node.id)!;
             if(cell_chain_id < link_chain_id) {
                 return new SetChain(link.node, cell_chain_id, reason("cell->link chain propagation", cell.node.id));
             } else if(link_chain_id < cell_chain_id) {
@@ -212,24 +203,20 @@ function process_cell(solver: Solver, cell: Cell) : Action | null {
         return new Fail("cell with " + live_links.length + " live links: " + cell.node.id);
     }
 
-    if(status == Status.Live) {
-        const cell_chain_id = solver.chains.get(cell.node.id);
-        if(cell_chain_id == undefined) {
-            return new Fail("live cell " + cell.node.id + " missing chain id");
-        }
+    if(live_links.length + unknown_links.length == 2) {
+        const cell_chain_id = solver.chains.get(cell.node.id)!;
 
-        for(const link of live_links) {
-            const link_chain_id = solver.chains.get(link.node.id);
-            if(link_chain_id == undefined) {
-                return new Fail("live link " + link.node.id + " of " + cell.node.id + " missing chain id");
-            }
+        for(const link of live_links.concat(unknown_links)) {
+            const link_chain_id = solver.chains.get(link.node.id)!;
             if(cell_chain_id < link_chain_id) {
                 return new SetChain(link.node, cell_chain_id, reason("cell->link chain propagation", cell.node.id));
             } else if(link_chain_id < cell_chain_id) {
                 return new SetChain(cell.node, link_chain_id, reason("link->cell chain propagation", link.node.id));
             }
         }
+    }
 
+    if(status == Status.Live) {
         if(unknown_links.length > 0) {
             if(live_links.length == 2) {
                 return new SetStatus(unknown_links[0].node, Status.Dead, reason("cell->link erasure", cell.node.id));
@@ -444,6 +431,12 @@ export function make_solver(cx: Index, cy: Index, live_links: Array<LinkContent>
     for(const link_content of live_links) {
         const id = make_link_id(link_content.pos, link_content.direction);
         solver.statuses.set(id, Status.Live);
+    }
+
+    for(const id of solver.grid.cells.keys()) {
+        solver.chains.set(id, id);
+    }
+    for(const id of solver.grid.links.keys()) {
         solver.chains.set(id, id);
     }
 
