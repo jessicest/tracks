@@ -139,20 +139,18 @@ export class View {
 
     execute(action: Action) {
         const modified_ids = action.execute(this.solver);
+        const next_candidate = this.solver.next_candidate();
+        if(next_candidate != null) {
+            modified_ids.push(next_candidate);
+        }
         this.redraw_selection(modified_ids);
     }
 
     get_state(id: Id): [Status, boolean, boolean] {
         const status = this.solver.statuses.get(id)!;
         const is_candidate = this.solver.candidates.has(id);
-        for(const candidate of this.solver.candidates) {
-            if(candidate == id) {
-                return [status, is_candidate, true];
-            } else {
-                break;
-            }
-        }
-        return [status, is_candidate, false];
+        const is_next_candidate = (id == this.solver.next_candidate());
+        return [status, is_candidate, is_next_candidate];
     }
 
     redraw() {

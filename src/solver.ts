@@ -183,7 +183,7 @@ function process_link(solver: Solver, link: Link) : Action | null {
             const cell_chain_1 = solver.chains.get(live_cells[1].node.id)!;
 
             if(cell_chain_0 == cell_chain_1) {
-                return new SetStatus(link.node, Status.Dead, reason("refusing to close loop", cell_chain_0));
+                //return new SetStatus(link.node, Status.Dead, reason("refusing to close loop", cell_chain_0));
             }
         }
     }
@@ -253,17 +253,19 @@ export class Solver {
         this.statuses = new Map();
         this.chains = new Map();
 
+        for(const id of grid.hints.keys()) {
+            this.candidates.add(id);
+            this.statuses.set(id, Status.Unknown);
+        }
         for(const id of grid.cells.keys()) {
             this.candidates.add(id);
             this.statuses.set(id, Status.Unknown);
+            this.chains.set(id, id);
         }
         for(const id of grid.links.keys()) {
             this.candidates.add(id);
             this.statuses.set(id, Status.Unknown);
-        }
-        for(const id of grid.hints.keys()) {
-            this.candidates.add(id);
-            this.statuses.set(id, Status.Unknown);
+            this.chains.set(id, id);
         }
     }
 
@@ -279,23 +281,29 @@ export class Solver {
         }
     }
 
-    process() : Action | null {
-        for(const id of this.candidates) {
-            let result = null;
-            switch(id.charAt(0)) {
-                case 'c': result = process_cell(this, this.grid.cells.get(id)!); break;
-                case 'l': result = process_link(this, this.grid.links.get(id)!); break;
-                case 'h': result = process_hint(this, this.grid.hints.get(id)!); break;
-                default: throw 'bad id format: ' + id;
-            }
+    next_candidate() : Id | null {
+        return this.candidates.values().next().value;
+    }
 
-            if(result != null) {
-                return result;
-            } else {
-                return new RepealCandidacy(id);
-            }
+    process() : Action | null {
+        const id = this.next_candidate();
+        if(id == null) {
+            return null;
         }
-        return null;
+
+        let result = null;
+        switch(id.charAt(0)) {
+            case 'c': result = process_cell(this, this.grid.cells.get(id)!); break;
+            case 'l': result = process_link(this, this.grid.links.get(id)!); break;
+            case 'h': result = process_hint(this, this.grid.hints.get(id)!); break;
+            default: throw 'bad id format: ' + id;
+        }
+
+        if(result != null) {
+            return result;
+        } else {
+            return new RepealCandidacy(id);
+        }
     }
 
     // Split cells into Live, Unknown, and Dead cells
@@ -431,13 +439,6 @@ export function make_solver(cx: Index, cy: Index, live_links: Array<LinkContent>
     for(const link_content of live_links) {
         const id = make_link_id(link_content.pos, link_content.direction);
         solver.statuses.set(id, Status.Live);
-    }
-
-    for(const id of solver.grid.cells.keys()) {
-        solver.chains.set(id, id);
-    }
-    for(const id of solver.grid.links.keys()) {
-        solver.chains.set(id, id);
     }
 
     return solver;
