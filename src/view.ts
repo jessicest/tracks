@@ -16,8 +16,7 @@ import {
 
 import {
     Action,
-    SetCellStatus,
-    SetLinkStatus,
+    SetStatus,
     Solver,
     Status,
     make_solver,
@@ -130,9 +129,9 @@ export class View {
 
             if(new_status != null) {
                 if(is_link) {
-                    this.execute(new SetLinkStatus(this.solver.grid.links.get(id)!, new_status, "click"));
+                    this.execute(new SetStatus(this.solver.grid.links.get(id)!.node, new_status, "click"));
                 } else {
-                    this.execute(new SetCellStatus(this.solver.grid.cells.get(id)!, new_status, "click"));
+                    this.execute(new SetStatus(this.solver.grid.cells.get(id)!.node, new_status, "click"));
                 }
             }
         }
@@ -212,10 +211,10 @@ export class View {
         //  - nigh
         //  - neutral
 
-        const [_status, is_candidate, is_next_candidate] = this.get_state(hint.id);
+        const [_status, is_candidate, is_next_candidate] = this.get_state(hint.node.id);
 
-        const num_cells = hint.cells.length;
-        const [live_cells, unknown_cells] = this.solver.split_cells(hint.cells);
+        const num_cells = hint.node.cells.length;
+        const [live_cells, unknown_cells] = this.solver.split_cells(hint.node.cells);
 
         let text_color = '#000000'; // neutral
         let inner_color = '#ffffff'; // neutral
@@ -270,7 +269,7 @@ export class View {
         const px = x * (cell_diameter + link_diameter);
         const py = y * (cell_diameter + link_diameter);
 
-        const [status, is_candidate, is_next_candidate] = this.get_state(cell.id);
+        const [status, is_candidate, is_next_candidate] = this.get_state(cell.node.id);
 
         let inner_color, outer_color;
         if(status == Status.Dead) {
@@ -313,7 +312,7 @@ export class View {
             cy = this.cell_radius;
         }
 
-        const [status, is_candidate, is_next_candidate] = this.get_state(link.id);
+        const [status, is_candidate, is_next_candidate] = this.get_state(link.node.id);
 
         let inner_color, outer_color;
 

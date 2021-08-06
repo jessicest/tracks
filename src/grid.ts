@@ -63,163 +63,166 @@ export type HintContent = {
     value: number
 };
 
+export type NodeId = Id;
+
+export class Node {
+    id: NodeId;
+    cells: Array<Cell>;
+    links: Array<Link>;
+    hints: Array<Hint>;
+
+    constructor(id: NodeId) {
+        this.id = id;
+        this.cells = new Array();
+        this.links = new Array();
+        this.hints = new Array();
+    }
+};
+
 export class Hint {
-    id: HintId;
+    node: Node;
     index: Index;
     direction: Direction;
     value: number;
-    cells: Array<Cell>;
-    links: Array<Link>;
 
     constructor(index: Index, direction: Direction, value: number) {
-        this.id = make_hint_id(index, direction);
+        this.node = new Node(make_hint_id(index, direction));
         this.index = index;
         this.direction = direction;
         this.value = value;
-        this.cells = new Array();
-        this.links = new Array();
     }
 }
 
 export class Cell {
-    id: CellId;
+    node: Node;
     pos: Pos;
-    hints: Array<Hint>;
-    links: Array<Link>;
 
     constructor(pos: Pos) {
-        this.id = make_cell_id(pos);
+        this.node = new Node(make_cell_id(pos));
         this.pos = pos;
-        this.hints = new Array();
-        this.links = new Array();
     }
 }
 
 export class Link {
-    id: LinkId;
+    node: Node;
     pos: Pos;
     direction: Direction;
-    hint: Hint | undefined;
-    cells: Array<Cell>;
 
     constructor(pos: Pos, direction: Direction) {
-        this.id = make_link_id(pos, direction);
+        this.node = new Node(make_link_id(pos, direction));
         this.pos = pos;
         this.direction = direction;
-        this.hint = undefined;
-        this.cells = new Array();
     }
 }
 
 export class GridBuilder {
-    cells: Map<string, Cell>;
-    links: Map<string, Link>;
-    hints: Map<string, Hint>;
-    xmax: Index;
-    ymax: Index;
+    grid: Grid;
 
     constructor(xmax: Index, ymax: Index) {
-        this.cells = new Map();
-        this.links = new Map();
-        this.hints = new Map();
-        this.xmax = xmax;
-        this.ymax = ymax;
+        this.grid = new Grid(xmax, ymax, new Map(), new Map(), new Map());
     }
 
     add_cell(pos: Pos) {
         const cell = new Cell(pos);
-        this.cells.set(cell.id, cell);
-        this.xmax = Math.max(this.xmax, pos.x);
-        this.ymax = Math.max(this.ymax, pos.y);
+        if(this.grid.cells.has(cell.node.id)) {
+            return;
+        }
 
-        this.try_connect_cell_with_link(cell.id, make_link_id(pos, Direction.East));
-        this.try_connect_cell_with_link(cell.id, make_link_id(west(pos), Direction.East));
-        this.try_connect_cell_with_link(cell.id, make_link_id(pos, Direction.South));
-        this.try_connect_cell_with_link(cell.id, make_link_id(north(pos), Direction.South));
+        this.grid.cells.set(cell.node.id, cell);
+        this.grid.xmax = Math.max(this.grid.xmax, pos.x);
+        this.grid.ymax = Math.max(this.grid.ymax, pos.y);
 
-        this.try_connect_hint_with_cell(make_hint_id(pos.y, Direction.East), cell.id);
-        this.try_connect_hint_with_cell(make_hint_id(pos.x, Direction.South), cell.id);
+        this.try_connect_cell_with_link(cell.node.id, make_link_id(pos, Direction.East));
+        this.try_connect_cell_with_link(cell.node.id, make_link_id(west(pos), Direction.East));
+        this.try_connect_cell_with_link(cell.node.id, make_link_id(pos, Direction.South));
+        this.try_connect_cell_with_link(cell.node.id, make_link_id(north(pos), Direction.South));
+
+        this.try_connect_hint_with_cell(make_hint_id(pos.y, Direction.East), cell.node.id);
+        this.try_connect_hint_with_cell(make_hint_id(pos.x, Direction.South), cell.node.id);
     }
 
     add_link(pos: Pos, direction: Direction) {
         const link = new Link(pos, direction);
-        this.links.set(link.id, link);
-        this.xmax = Math.max(this.xmax, pos.x);
-        this.ymax = Math.max(this.ymax, pos.y);
+        if(this.grid.links.has(link.node.id)) {
+            return;
+        }
 
-        this.try_connect_cell_with_link(make_cell_id(pos), link.id);
+        this.grid.links.set(link.node.id, link);
+        this.grid.xmax = Math.max(this.grid.xmax, pos.x);
+        this.grid.ymax = Math.max(this.grid.ymax, pos.y);
+
+        this.try_connect_cell_with_link(make_cell_id(pos), link.node.id);
         switch(direction) {
             case Direction.East:
-                this.try_connect_cell_with_link(make_cell_id(east(pos)), link.id);
-                this.try_connect_hint_with_link(make_hint_id(pos.y, Direction.East), link.id);
+                this.try_connect_cell_with_link(make_cell_id(east(pos)), link.node.id);
+                this.try_connect_hint_with_link(make_hint_id(pos.y, Direction.East), link.node.id);
                 break;
             case Direction.South:
-                this.try_connect_cell_with_link(make_cell_id(south(pos)), link.id);
-                this.try_connect_hint_with_link(make_hint_id(pos.x, Direction.South), link.id);
+                this.try_connect_cell_with_link(make_cell_id(south(pos)), link.node.id);
+                this.try_connect_hint_with_link(make_hint_id(pos.x, Direction.South), link.node.id);
                 break;
         }
     }
 
     add_hint(index: Index, direction: Direction, value: number) {
         const hint = new Hint(index, direction, value);
-        this.hints.set(hint.id, hint);
+        if(this.grid.hints.has(hint.node.id)) {
+            return;
+        }
+
+        this.grid.hints.set(hint.node.id, hint);
 
         switch(direction) {
             case Direction.South:
                 const x = index;
-                for(const y of range(this.ymax + 1)) {
+                for(const y of range(this.grid.ymax + 1)) {
                     const pos = { x, y };
-                    this.try_connect_hint_with_cell(hint.id, make_cell_id(pos));
-                    this.try_connect_hint_with_link(hint.id, make_link_id(pos, Direction.South));
+                    this.try_connect_hint_with_cell(hint.node.id, make_cell_id(pos));
+                    this.try_connect_hint_with_link(hint.node.id, make_link_id(pos, Direction.South));
                 }
                 break;
             case Direction.East:
                 const y = index;
-                for(const x of range(this.xmax + 1)) {
+                for(const x of range(this.grid.xmax + 1)) {
                     const pos = { x, y };
-                    this.try_connect_hint_with_cell(hint.id, make_cell_id(pos));
-                    this.try_connect_hint_with_link(hint.id, make_link_id(pos, Direction.East));
+                    this.try_connect_hint_with_cell(hint.node.id, make_cell_id(pos));
+                    this.try_connect_hint_with_link(hint.node.id, make_link_id(pos, Direction.East));
                 }
                 break;
         }
     }
 
     try_connect_cell_with_link(cell_id: CellId, link_id: LinkId) {
-        const cell = this.cells.get(cell_id);
-        const link = this.links.get(link_id);
+        const cell = this.grid.cells.get(cell_id);
+        const link = this.grid.links.get(link_id);
         if(cell && link) {
-            cell.links.push(link);
-            link.cells.push(cell);
+            cell.node.links.push(link);
+            link.node.cells.push(cell);
         }
     }
 
     try_connect_hint_with_cell(hint_id: HintId, cell_id: CellId) {
-        const hint = this.hints.get(hint_id);
-        const cell = this.cells.get(cell_id);
+        const hint = this.grid.hints.get(hint_id);
+        const cell = this.grid.cells.get(cell_id);
 
         if(hint && cell) {
-            hint.cells.push(cell);
-            cell.hints.push(hint);
+            hint.node.cells.push(cell);
+            cell.node.hints.push(hint);
         }
     }
 
     try_connect_hint_with_link(hint_id: HintId, link_id: LinkId) {
-        const hint = this.hints.get(hint_id);
-        const link = this.links.get(link_id);
+        const hint = this.grid.hints.get(hint_id);
+        const link = this.grid.links.get(link_id);
 
         if(hint && link) {
-            hint.links.push(link);
-            link.hint = hint;
+            hint.node.links.push(link);
+            link.node.hints.push(hint);
         }
     }
 
     build() : Grid {
-        return new Grid(
-            this.xmax,
-            this.ymax,
-            this.cells,
-            this.links,
-            this.hints);
+        return this.grid;
     }
 }
 
@@ -283,11 +286,9 @@ export function make_grid(cx: Index, cy: Index, live_links: Array<LinkContent>, 
         }
     }
 
-    // add any live links that are missing (this is for the offramps)
+    // add live links (this will add the offramps)
     for(const link_content of live_links) {
-        if(!builder.links.get(make_link_id(link_content.pos, link_content.direction))) {
-            builder.add_link(link_content.pos, link_content.direction);
-        }
+        builder.add_link(link_content.pos, link_content.direction);
     }
 
     // add hints
