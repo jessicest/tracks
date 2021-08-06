@@ -257,6 +257,15 @@ export class View {
         context.fillText(value, px, py);
     }
 
+    draw_line(context: CanvasRenderingContext2D, px1: number, py1: number, px2: number, py2: number, color: string) {
+        context.strokeStyle = color;
+        context.lineWidth = 3;
+        context.beginPath();
+        context.moveTo(px1, py1);
+        context.lineTo(px2, py2);
+        context.stroke();
+    }
+
     draw_cell(context: CanvasRenderingContext2D, cell: Cell) {
         const cell_diameter = this.cell_radius * 2;
         const link_diameter = this.link_radius * 2;
@@ -331,6 +340,48 @@ export class View {
         }
 
         this.draw_gradient(context, px, py, cx, cy, inner_color, outer_color);
+
+        const qx = cx / 2;
+        const qy = cy / 2;
+        for(const cell of link.node.cells) {
+            if(this.solver.chains.get(cell.node.id)! == this.solver.chains.get(link.node.id)!) {
+                const distance = (cell.pos.y + cell.pos.x) - (link.pos.y + link.pos.x);
+                switch(link.direction) {
+                    case Direction.East: {
+                        switch(distance) {
+                            case 0: { // westward
+                                this.draw_line(context, px + cx, py + qy, px + cx * 2, py + qy, "#880000");
+                                this.draw_line(context, px + cx, py + 3 * qy, px + cx * 2, py + 3 * qy, "#880000");
+                                break;
+                            }
+                            case 1: { // eastward
+                                //this.draw_line(context, px + cx, py + qy, px, py + qy, "#880000");
+                                //this.draw_line(context, px + cx, py + 3 * qy, px, py + 3 * qy, "#880000");
+                                break;
+                            }
+                            default: throw "wait hang on a sec wait wait what wait: " + link.node.id + " vs " + cell.node.id + " makes " + [distance, direction];
+                        }
+                        break;
+                    }
+                    case Direction.South: {
+                        switch(distance) {
+                            case 0: { // southward
+                                this.draw_line(context, px + qx, py, px + qx, py + cy, "#880000");
+                                this.draw_line(context, px + 3 * qx, py, px + 3 * qx, py + cy, "#880000");
+                                break;
+                            }
+                            case 1: { // northward
+                                this.draw_line(context, px + qx, py + cy * 2, px + qx, py + cy, "#880000");
+                                this.draw_line(context, px + 3 * qx, py + cy * 2, px + 3 * qx, py + cy, "#880000");
+                                break;
+                            }
+                            default: throw "huh? but: " + link.node.id + " vs " + cell.node.id + " makes " + [distance, direction];
+                        }
+                        break;
+                    }
+                }
+            }
+        }
     }
 
     solve_step(): boolean {

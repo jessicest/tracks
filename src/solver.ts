@@ -160,19 +160,6 @@ function process_link(solver: Solver, link: Link) : Action | null {
     const status = solver.statuses.get(link.node.id);
     const [live_cells, unknown_cells] = solver.split_cells(link.node.cells);
 
-    if(live_cells.length + unknown_cells.length == 2) {
-        const link_chain_id = solver.chains.get(link.node.id)!;
-
-        for(const cell of live_cells.concat(unknown_cells)) {
-            const cell_chain_id = solver.chains.get(cell.node.id)!;
-            if(cell_chain_id < link_chain_id) {
-                return new SetChain(link.node, cell_chain_id, reason("cell->link chain propagation", cell.node.id));
-            } else if(link_chain_id < cell_chain_id) {
-                return new SetChain(cell.node, link_chain_id, reason("link->cell chain propagation", link.node.id));
-            }
-        }
-    }
-
     if(status == Status.Unknown) {
         if(live_cells.length + unknown_cells.length < 2) {
             return new SetStatus(link.node, Status.Dead, reason("cell->link extinguish", link.node.cells[0].node.id));
@@ -183,7 +170,20 @@ function process_link(solver: Solver, link: Link) : Action | null {
             const cell_chain_1 = solver.chains.get(live_cells[1].node.id)!;
 
             if(cell_chain_0 == cell_chain_1) {
-                //return new SetStatus(link.node, Status.Dead, reason("refusing to close loop", cell_chain_0));
+                return new SetStatus(link.node, Status.Dead, reason("refusing to close loop", cell_chain_0));
+            }
+        }
+    }
+
+    if(live_cells.length + unknown_cells.length == 2) {
+        const link_chain_id = solver.chains.get(link.node.id)!;
+
+        for(const cell of live_cells) {
+            const cell_chain_id = solver.chains.get(cell.node.id)!;
+            if(cell_chain_id < link_chain_id) {
+                return new SetChain(link.node, cell_chain_id, reason("cell->link chain propagation", cell.node.id));
+            } else if(link_chain_id < cell_chain_id) {
+                return new SetChain(cell.node, link_chain_id, reason("link->cell chain propagation", link.node.id));
             }
         }
     }
@@ -201,19 +201,6 @@ function process_cell(solver: Solver, cell: Cell) : Action | null {
 
     if(live_links.length > 2) {
         return new Fail("cell with " + live_links.length + " live links: " + cell.node.id);
-    }
-
-    if(live_links.length + unknown_links.length == 2) {
-        const cell_chain_id = solver.chains.get(cell.node.id)!;
-
-        for(const link of live_links.concat(unknown_links)) {
-            const link_chain_id = solver.chains.get(link.node.id)!;
-            if(cell_chain_id < link_chain_id) {
-                return new SetChain(link.node, cell_chain_id, reason("cell->link chain propagation", cell.node.id));
-            } else if(link_chain_id < cell_chain_id) {
-                return new SetChain(cell.node, link_chain_id, reason("link->cell chain propagation", link.node.id));
-            }
-        }
     }
 
     if(status == Status.Live) {
@@ -235,6 +222,19 @@ function process_cell(solver: Solver, cell: Cell) : Action | null {
 
         if(unknown_links.length < 2) {
             return new SetStatus(cell.node, Status.Dead, reason("link->cell extinguishment", cell.node.id));
+        }
+    }
+
+    if(live_links.length + unknown_links.length == 2) {
+        const cell_chain_id = solver.chains.get(cell.node.id)!;
+
+        for(const link of live_links) {
+            const link_chain_id = solver.chains.get(link.node.id)!;
+            if(cell_chain_id < link_chain_id) {
+                return new SetChain(link.node, cell_chain_id, reason("cell->link chain propagation", cell.node.id));
+            } else if(link_chain_id < cell_chain_id) {
+                return new SetChain(cell.node, link_chain_id, reason("link->cell chain propagation", link.node.id));
+            }
         }
     }
 
