@@ -83,6 +83,7 @@ export class SetChain implements Action {
             this.solver.candidates.add(id);
         }
 
+        modified_ids.push(this.target.id);
         return modified_ids;
     }
 }
@@ -139,12 +140,16 @@ class Fail implements Action {
 }
 
 function try_propagate_chain(solver: Solver, chains: Map<Id, Id>, node1: Node, node2: Node, reason_string: string): Action | null {
-    const chain1 = chains.get(node1.id)!;
-    const chain2 = chains.get(node2.id)!;
+    const chain1 = chains.get(node1.id);
+    const chain2 = chains.get(node2.id);
 
-    if(chain1 < chain2) {
+    if(chain1 == null && chain2 == null) {
+        return null;
+    }
+
+    if(chain1 != null && (chain2 == null || chain1 < chain2)) {
         return new SetChain(solver, chains, node2, chain1, reason(reason_string, node1.id));
-    } else if(chain2 < chain1) {
+    } else if(chain2 != null && (chain1 == null || chain2 < chain1)) {
         return new SetChain(solver, chains, node1, chain2, reason(reason_string, node2.id));
     }
 
@@ -205,7 +210,7 @@ function process_link(solver: Solver, link: Link) : Action | null {
         }
     }
 
-    if(live_cells.length + unknown_cells.length == 2) {
+    if(live_cells.length + unknown_cells.length == 2 && solver.hemichains.has(link.node.id)) {
         for(const cell of live_cells.concat(unknown_cells)) {
             const action = try_propagate_chain(solver, solver.hemichains, link.node, cell.node, "link->hemichain propagation");
             if(action != null) {
@@ -260,7 +265,7 @@ function process_cell(solver: Solver, cell: Cell) : Action | null {
         }
     }
 
-    if(live_links.length + unknown_links.length == 2) {
+    if(live_links.length + unknown_links.length == 2 && solver.hemichains.has(cell.node.id)) {
         for(const link of live_links.concat(unknown_links)) {
             const action = try_propagate_chain(solver, solver.hemichains, cell.node, link.node, "cell->hemichain propagation");
             if(action != null) {
@@ -276,8 +281,8 @@ export class Solver {
     grid: Grid;
     candidates: Set<Id>;
     statuses: Map<Id, Status>;
-    chains: Map<CellId, CellId>;
-    hemichains: Map<CellId, CellId>;
+    chains: Map<Id, Id>;
+    hemichains: Map<Id, Id>;
 
     constructor(grid: Grid) {
         this.grid = grid;
@@ -300,7 +305,6 @@ export class Solver {
             this.candidates.add(id);
             this.statuses.set(id, Status.Unknown);
             this.chains.set(id, id);
-            this.hemichains.set(id, id);
         }
     }
 

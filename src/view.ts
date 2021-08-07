@@ -351,11 +351,13 @@ export class View {
                                  px, py, cx, cy, gap, '#880000');
             }
 
-            if(this.solver.hemichains.get(cell.node.id)! == this.solver.hemichains.get(link.node.id)!) {
-                const distance = (cell.pos.y + cell.pos.x) - (link.pos.y + link.pos.x);
-                const cardinal = distance + (link.direction == Direction.South ? 2 : 0);
-                this.draw_chains(context, this.solver.hemichains, cardinal,
-                                 px, py, cx, cy, 3 * gap / 2, '#dd33ff');
+            if(this.solver.hemichains.has(cell.node.id) && this.solver.hemichains.has(link.node.id)) {
+                if(this.solver.hemichains.get(cell.node.id)! == this.solver.hemichains.get(link.node.id)!) {
+                    const distance = (cell.pos.y + cell.pos.x) - (link.pos.y + link.pos.x);
+                    const cardinal = distance + (link.direction == Direction.South ? 2 : 0);
+                    this.draw_chains(context, this.solver.hemichains, cardinal,
+                                     px, py, cx, cy, 3 * gap / 2, '#333333');
+                }
             }
         }
     }
