@@ -138,14 +138,14 @@ class Fail implements Action {
     }
 }
 
-function try_propagate_chain(solver: Solver, chains: Map<Id, Id>, node1: Node, node2: Node): Action | null {
+function try_propagate_chain(solver: Solver, chains: Map<Id, Id>, node1: Node, node2: Node, reason_string: string): Action | null {
     const chain1 = chains.get(node1.id)!;
     const chain2 = chains.get(node2.id)!;
 
     if(chain1 < chain2) {
-        return new SetChain(solver, solver.chains, node2, chain1, reason("chain propagation", node1.id));
+        return new SetChain(solver, chains, node2, chain1, reason(reason_string, node1.id));
     } else if(chain2 < chain1) {
-        return new SetChain(solver, solver.chains, node1, chain2, reason("chain propagation", node2.id));
+        return new SetChain(solver, chains, node1, chain2, reason(reason_string, node2.id));
     }
 
     return null;
@@ -198,7 +198,16 @@ function process_link(solver: Solver, link: Link) : Action | null {
 
     if(status == Status.Live) {
         for(const cell of live_cells) {
-            const action = try_propagate_chain(solver, solver.chains, link.node, cell.node);
+            const action = try_propagate_chain(solver, solver.chains, link.node, cell.node, "link->chain propagation");
+            if(action != null) {
+                return action;
+            }
+        }
+    }
+
+    if(live_cells.length + unknown_cells.length == 2) {
+        for(const cell of live_cells.concat(unknown_cells)) {
+            const action = try_propagate_chain(solver, solver.hemichains, link.node, cell.node, "link->hemichain propagation");
             if(action != null) {
                 return action;
             }
@@ -244,7 +253,16 @@ function process_cell(solver: Solver, cell: Cell) : Action | null {
 
     if(status == Status.Live) {
         for(const link of live_links) {
-            const action = try_propagate_chain(solver, solver.chains, cell.node, link.node);
+            const action = try_propagate_chain(solver, solver.chains, cell.node, link.node, "cell->chain propagation");
+            if(action != null) {
+                return action;
+            }
+        }
+    }
+
+    if(live_links.length + unknown_links.length == 2) {
+        for(const link of live_links.concat(unknown_links)) {
+            const action = try_propagate_chain(solver, solver.hemichains, cell.node, link.node, "cell->hemichain propagation");
             if(action != null) {
                 return action;
             }
@@ -259,12 +277,14 @@ export class Solver {
     candidates: Set<Id>;
     statuses: Map<Id, Status>;
     chains: Map<CellId, CellId>;
+    hemichains: Map<CellId, CellId>;
 
     constructor(grid: Grid) {
         this.grid = grid;
         this.candidates = new Set();
         this.statuses = new Map();
         this.chains = new Map();
+        this.hemichains = new Map();
 
         for(const id of grid.hints.keys()) {
             this.candidates.add(id);
@@ -274,11 +294,13 @@ export class Solver {
             this.candidates.add(id);
             this.statuses.set(id, Status.Unknown);
             this.chains.set(id, id);
+            this.hemichains.set(id, id);
         }
         for(const id of grid.links.keys()) {
             this.candidates.add(id);
             this.statuses.set(id, Status.Unknown);
             this.chains.set(id, id);
+            this.hemichains.set(id, id);
         }
     }
 

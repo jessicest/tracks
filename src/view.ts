@@ -306,17 +306,19 @@ export class View {
         const y = link.pos.y;
         const direction = link.direction;
 
-        let px, py, cx, cy;
+        let px, py, cx, cy, gap;
         if(direction == Direction.South) {
             px = x * (cell_diameter + link_diameter);
             py = y * (cell_diameter + link_diameter) + cell_diameter;
             cx = this.cell_radius;
             cy = this.link_radius;
+            gap = cx / 2;
         } else {
             px = x * (cell_diameter + link_diameter) + cell_diameter;
             py = y * (cell_diameter + link_diameter);
             cx = this.link_radius;
             cy = this.cell_radius;
+            gap = cy / 2;
         }
 
         const [status, is_candidate, is_next_candidate] = this.get_state(link.node.id);
@@ -341,46 +343,47 @@ export class View {
 
         this.draw_gradient(context, px, py, cx, cy, inner_color, outer_color);
 
-        const qx = cx / 2;
-        const qy = cy / 2;
         for(const cell of link.node.cells) {
             if(this.solver.chains.get(cell.node.id)! == this.solver.chains.get(link.node.id)!) {
                 const distance = (cell.pos.y + cell.pos.x) - (link.pos.y + link.pos.x);
-                switch(link.direction) {
-                    case Direction.East: {
-                        switch(distance) {
-                            case 0: { // westward
-                                this.draw_line(context, px + cx, py + qy, px, py + qy, "#880000");
-                                this.draw_line(context, px + cx, py + 3 * qy, px, py + 3 * qy, "#880000");
-                                break;
-                            }
-                            case 1: { // eastward
-                                this.draw_line(context, px + cx, py + qy, px + cx * 2, py + qy, "#880000");
-                                this.draw_line(context, px + cx, py + 3 * qy, px + cx * 2, py + 3 * qy, "#880000");
-                                break;
-                            }
-                            default: throw "wait hang on a sec wait wait what wait: " + link.node.id + " vs " + cell.node.id + " makes " + [distance, direction];
-                        }
-                        break;
-                    }
-                    case Direction.South: {
-                        switch(distance) {
-                            case 0: { // northward
-                                this.draw_line(context, px + qx, py, px + qx, py + cy, "#880000");
-                                this.draw_line(context, px + 3 * qx, py, px + 3 * qx, py + cy, "#880000");
-                                break;
-                            }
-                            case 1: { // southward
-                                this.draw_line(context, px + qx, py + cy * 2, px + qx, py + cy, "#880000");
-                                this.draw_line(context, px + 3 * qx, py + cy * 2, px + 3 * qx, py + cy, "#880000");
-                                break;
-                            }
-                            default: throw "huh? but: " + link.node.id + " vs " + cell.node.id + " makes " + [distance, direction];
-                        }
-                        break;
-                    }
-                }
+                const cardinal = distance + (link.direction == Direction.South ? 2 : 0);
+                this.draw_chains(context, this.solver.chains, cardinal,
+                                 px, py, cx, cy, gap, '#880000');
             }
+
+            if(this.solver.hemichains.get(cell.node.id)! == this.solver.hemichains.get(link.node.id)!) {
+                const distance = (cell.pos.y + cell.pos.x) - (link.pos.y + link.pos.x);
+                const cardinal = distance + (link.direction == Direction.South ? 2 : 0);
+                this.draw_chains(context, this.solver.hemichains, cardinal,
+                                 px, py, cx, cy, 3 * gap / 2, '#dd33ff');
+            }
+        }
+    }
+
+    // cardinal: 0 = west, 1 = east, 2 = north, 3 = south
+    draw_chains(context: CanvasRenderingContext2D, chains: Map<Id, Id>, cardinal: number, px: number, py: number, cx: number, cy: number, gap: number, color: string) {
+        switch(cardinal) {
+            case 0: {
+                this.draw_line(context, px + cx, py + cy - gap, px, py + cy - gap, color);
+                this.draw_line(context, px + cx, py + cy + gap, px, py + cy + gap, color);
+                break;
+            }
+            case 1: {
+                this.draw_line(context, px + cx, py + cy - gap, px + cx + cx, py + cy - gap, color);
+                this.draw_line(context, px + cx, py + cy + gap, px + cx + cx, py + cy + gap, color);
+                break;
+            }
+            case 2: {
+                this.draw_line(context, px + cx - gap, py, px + cx - gap, py + cy, color);
+                this.draw_line(context, px + cx + gap, py, px + cx + gap, py + cy, color);
+                break;
+            }
+            case 3: {
+                this.draw_line(context, px + cx - gap, py + cy + cy, px + cx - gap, py + cy, color);
+                this.draw_line(context, px + cx + gap, py + cy + cy, px + cx + gap, py + cy, color);
+                break;
+            }
+            default: throw "hm.";
         }
     }
 
