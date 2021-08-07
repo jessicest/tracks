@@ -350,13 +350,13 @@ export class View {
                     case Direction.East: {
                         switch(distance) {
                             case 0: { // westward
-                                this.draw_line(context, px + cx, py + qy, px + cx * 2, py + qy, "#880000");
-                                this.draw_line(context, px + cx, py + 3 * qy, px + cx * 2, py + 3 * qy, "#880000");
+                                this.draw_line(context, px + cx, py + qy, px, py + qy, "#880000");
+                                this.draw_line(context, px + cx, py + 3 * qy, px, py + 3 * qy, "#880000");
                                 break;
                             }
                             case 1: { // eastward
-                                //this.draw_line(context, px + cx, py + qy, px, py + qy, "#880000");
-                                //this.draw_line(context, px + cx, py + 3 * qy, px, py + 3 * qy, "#880000");
+                                this.draw_line(context, px + cx, py + qy, px + cx * 2, py + qy, "#880000");
+                                this.draw_line(context, px + cx, py + 3 * qy, px + cx * 2, py + 3 * qy, "#880000");
                                 break;
                             }
                             default: throw "wait hang on a sec wait wait what wait: " + link.node.id + " vs " + cell.node.id + " makes " + [distance, direction];
@@ -365,12 +365,12 @@ export class View {
                     }
                     case Direction.South: {
                         switch(distance) {
-                            case 0: { // southward
+                            case 0: { // northward
                                 this.draw_line(context, px + qx, py, px + qx, py + cy, "#880000");
                                 this.draw_line(context, px + 3 * qx, py, px + 3 * qx, py + cy, "#880000");
                                 break;
                             }
-                            case 1: { // northward
+                            case 1: { // southward
                                 this.draw_line(context, px + qx, py + cy * 2, px + qx, py + cy, "#880000");
                                 this.draw_line(context, px + 3 * qx, py + cy * 2, px + 3 * qx, py + cy, "#880000");
                                 break;
