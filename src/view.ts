@@ -129,16 +129,16 @@ export class View {
 
             if(new_status != null) {
                 if(is_link) {
-                    this.execute(new SetStatus(this.solver.grid.links.get(id)!.node, new_status, "click"));
+                    this.execute(new SetStatus(this.solver, this.solver.grid.links.get(id)!.node, new_status, "click"));
                 } else {
-                    this.execute(new SetStatus(this.solver.grid.cells.get(id)!.node, new_status, "click"));
+                    this.execute(new SetStatus(this.solver, this.solver.grid.cells.get(id)!.node, new_status, "click"));
                 }
             }
         }
     }
 
     execute(action: Action) {
-        const modified_ids = action.execute(this.solver);
+        const modified_ids = action.execute();
         const next_candidate = this.solver.next_candidate();
         if(next_candidate != null) {
             modified_ids.push(next_candidate);

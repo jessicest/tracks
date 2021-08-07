@@ -23,7 +23,7 @@ export const enum Status {
 }
 
 export interface Action {
-    execute(solver: Solver): Array<Id>;
+    execute(): Array<Id>;
 }
 
 function output(s: string) {
@@ -35,36 +35,42 @@ function reason(label: string, id: string): string {
 }
 
 class RepealCandidacy implements Action {
+    candidates: Set<Id>;
     id: Id;
 
-    constructor(id: Id) {
+    constructor(candidates: Set<Id>, id: Id) {
+        this.candidates = candidates;
         this.id = id;
     }
 
-    execute(solver: Solver): Array<Id> {
+    execute(): Array<Id> {
         output('clear: ' + this.id);
-        solver.candidates.delete(this.id);
+        this.candidates.delete(this.id);
         return [this.id];
     }
 }
 
 export class SetChain implements Action {
+    solver: Solver;
+    chains: Map<Id, Id>;
     target: Node;
     chain_id: Id;
     reason: string;
 
-    constructor(target: Node, chain_id: Id, reason: string) {
+    constructor(solver: Solver, chains: Map<Id, Id>, target: Node, chain_id: Id, reason: string) {
+        this.solver = solver;
+        this.chains = chains;
         this.target = target;
         this.chain_id = chain_id;
         this.reason = reason;
     }
 
-    execute(solver: Solver): Array<Id> {
+    execute(): Array<Id> {
         output('node ' + this.target.id + ' joins ' + this.chain_id + '; ' + this.reason);
-        solver.chains.set(this.target.id, this.chain_id);
+        this.chains.set(this.target.id, this.chain_id);
 
-        const [live_cells, unknown_cells] = solver.split_cells(this.target.cells);
-        const [live_links, unknown_links] = solver.split_links(this.target.links);
+        const [live_cells, unknown_cells] = this.solver.split_cells(this.target.cells);
+        const [live_links, unknown_links] = this.solver.split_links(this.target.links);
 
         const modified_ids = new Array();
 
@@ -74,7 +80,7 @@ export class SetChain implements Action {
             }
         }
         for(const id of modified_ids) {
-            solver.candidates.add(id);
+            this.solver.candidates.add(id);
         }
 
         return modified_ids;
@@ -82,24 +88,26 @@ export class SetChain implements Action {
 }
 
 export class SetStatus implements Action {
+    solver: Solver;
     node: Node;
     new_status: Status;
     reason: string;
 
-    constructor(node: Node, new_status: Status, reason: string) {
+    constructor(solver: Solver, node: Node, new_status: Status, reason: string) {
+        this.solver = solver;
         this.node = node;
         this.new_status = new_status;
         this.reason = reason;
     }
 
-    execute(solver: Solver): Array<Id> {
+    execute(): Array<Id> {
         output(this.node.id + ' -> ' + this.new_status + '; ' + this.reason);
         const modified_ids = new Array();
 
-        solver.statuses.set(this.node.id, this.new_status);
+        this.solver.statuses.set(this.node.id, this.new_status);
 
-        const [live_cells, unknown_cells] = solver.split_cells(this.node.cells);
-        const [_live_links, unknown_links] = solver.split_links(this.node.links);
+        const [live_cells, unknown_cells] = this.solver.split_cells(this.node.cells);
+        const [_live_links, unknown_links] = this.solver.split_links(this.node.links);
 
         for(const neighbors of [[this], live_cells, unknown_cells, unknown_links, this.node.hints]) {
             for(const neighbor of neighbors) {
@@ -108,10 +116,10 @@ export class SetStatus implements Action {
         }
 
         for(const id of modified_ids) {
-            solver.candidates.add(id);
+            this.solver.candidates.add(id);
         }
         if(this.new_status == Status.Dead && this.reason != "click") {
-            solver.candidates.delete(this.node.id);
+            this.solver.candidates.delete(this.node.id);
         }
 
         return modified_ids;
@@ -125,9 +133,22 @@ class Fail implements Action {
         this.reason = reason;
     }
 
-    execute(solver: Solver): Array<Id> {
+    execute(): Array<Id> {
         throw new Error("failure executed: " + this.reason);
     }
+}
+
+function try_propagate_chain(solver: Solver, chains: Map<Id, Id>, node1: Node, node2: Node): Action | null {
+    const chain1 = chains.get(node1.id)!;
+    const chain2 = chains.get(node2.id)!;
+
+    if(chain1 < chain2) {
+        return new SetChain(solver, solver.chains, node2, chain1, reason("chain propagation", node1.id));
+    } else if(chain2 < chain1) {
+        return new SetChain(solver, solver.chains, node1, chain2, reason("chain propagation", node2.id));
+    }
+
+    return null;
 }
 
 function process_hint(solver: Solver, hint: Hint) : Action | null {
@@ -135,11 +156,11 @@ function process_hint(solver: Solver, hint: Hint) : Action | null {
 
     if(unknown_cells.length > 0) {
         if(live_cells.length == hint.value) {
-            return new SetStatus(unknown_cells[0].node, Status.Dead, reason("hint->cell extinction", hint.node.id));
+            return new SetStatus(solver, unknown_cells[0].node, Status.Dead, reason("hint->cell extinction", hint.node.id));
         }
 
         if(live_cells.length + unknown_cells.length == hint.value) {
-            return new SetStatus(unknown_cells[0].node, Status.Live, reason("hint->cell creation", hint.node.id));
+            return new SetStatus(solver, unknown_cells[0].node, Status.Live, reason("hint->cell creation", hint.node.id));
         }
 
         if(live_cells.length == hint.value - 1) {
@@ -147,7 +168,7 @@ function process_hint(solver: Solver, hint: Hint) : Action | null {
             for(const link of unknown_links) {
                 const [live_neighbors, _unknown_neighbors] = solver.split_cells(link.node.cells);
                 if(live_neighbors.length == 0) {
-                    return new SetStatus(link.node, Status.Dead, reason("hint->link restriction", hint.node.id));
+                    return new SetStatus(solver, link.node, Status.Dead, reason("hint->link restriction", hint.node.id));
                 }
             }
         }
@@ -162,7 +183,7 @@ function process_link(solver: Solver, link: Link) : Action | null {
 
     if(status == Status.Unknown) {
         if(live_cells.length + unknown_cells.length < 2) {
-            return new SetStatus(link.node, Status.Dead, reason("cell->link extinguish", link.node.cells[0].node.id));
+            return new SetStatus(solver, link.node, Status.Dead, reason("cell->link extinguish", link.node.cells[0].node.id));
         }
 
         if(live_cells.length == 2) {
@@ -170,20 +191,16 @@ function process_link(solver: Solver, link: Link) : Action | null {
             const cell_chain_1 = solver.chains.get(live_cells[1].node.id)!;
 
             if(cell_chain_0 == cell_chain_1) {
-                return new SetStatus(link.node, Status.Dead, reason("refusing to close loop", cell_chain_0));
+                return new SetStatus(solver, link.node, Status.Dead, reason("refusing to close loop", cell_chain_0));
             }
         }
     }
 
     if(status == Status.Live) {
-        const link_chain_id = solver.chains.get(link.node.id)!;
-
         for(const cell of live_cells) {
-            const cell_chain_id = solver.chains.get(cell.node.id)!;
-            if(cell_chain_id < link_chain_id) {
-                return new SetChain(link.node, cell_chain_id, reason("cell->link chain propagation", cell.node.id));
-            } else if(link_chain_id < cell_chain_id) {
-                return new SetChain(cell.node, link_chain_id, reason("link->cell chain propagation", link.node.id));
+            const action = try_propagate_chain(solver, solver.chains, link.node, cell.node);
+            if(action != null) {
+                return action;
             }
         }
     }
@@ -206,34 +223,30 @@ function process_cell(solver: Solver, cell: Cell) : Action | null {
     if(status == Status.Live) {
         if(unknown_links.length > 0) {
             if(live_links.length == 2) {
-                return new SetStatus(unknown_links[0].node, Status.Dead, reason("cell->link erasure", cell.node.id));
+                return new SetStatus(solver, unknown_links[0].node, Status.Dead, reason("cell->link erasure", cell.node.id));
             }
 
             if(live_links.length + unknown_links.length == 2) {
-                return new SetStatus(unknown_links[0].node, Status.Live, reason("cell->link completion", cell.node.id));
+                return new SetStatus(solver, unknown_links[0].node, Status.Live, reason("cell->link completion", cell.node.id));
             }
         }
     }
 
     if(status == Status.Unknown) {
         if(live_links.length > 0) {
-            return new SetStatus(cell.node, Status.Live, reason("link->cell ignition", live_links[0].node.id));
+            return new SetStatus(solver, cell.node, Status.Live, reason("link->cell ignition", live_links[0].node.id));
         }
 
         if(unknown_links.length < 2) {
-            return new SetStatus(cell.node, Status.Dead, reason("link->cell extinguishment", cell.node.id));
+            return new SetStatus(solver, cell.node, Status.Dead, reason("link->cell extinguishment", cell.node.id));
         }
     }
 
     if(status == Status.Live) {
-        const cell_chain_id = solver.chains.get(cell.node.id)!;
-
         for(const link of live_links) {
-            const link_chain_id = solver.chains.get(link.node.id)!;
-            if(cell_chain_id < link_chain_id) {
-                return new SetChain(link.node, cell_chain_id, reason("cell->link chain propagation", cell.node.id));
-            } else if(link_chain_id < cell_chain_id) {
-                return new SetChain(cell.node, link_chain_id, reason("link->cell chain propagation", link.node.id));
+            const action = try_propagate_chain(solver, solver.chains, cell.node, link.node);
+            if(action != null) {
+                return action;
             }
         }
     }
@@ -273,7 +286,7 @@ export class Solver {
         while(true) {
             const action = this.process();
             if(action) {
-                action.execute(this);
+                action.execute();
                 output('.');
             } else {
                 break;
@@ -302,7 +315,7 @@ export class Solver {
         if(result != null) {
             return result;
         } else {
-            return new RepealCandidacy(id);
+            return new RepealCandidacy(this.candidates, id);
         }
     }
 
