@@ -1,4 +1,7 @@
 
+// fun grids:
+// 23x20:j9bCg5g56h6a5b5yAeCh5d6f6zyAj6i3a3p9f9g9gAn6i3j9b6ApAiAb63bCnAd5bAb5hCb3CzbAc6m6g5e5cA5zp3uCc,6,7,11,12,12,11,8,9,6,12,12,9,9,8,8,4,6,9,8,S7,11,15,18,18,21,13,11,11,11,8,7,7,14,10,10,13,14,10,9,12,S11,6,2
+
 import {
     Cell,
     CellId,
@@ -110,7 +113,7 @@ export class SetStatus implements Action {
         const [live_cells, unknown_cells] = this.solver.split_cells(this.node.cells);
         const [_live_links, unknown_links] = this.solver.split_links(this.node.links);
 
-        for(const neighbors of [[this], live_cells, unknown_cells, unknown_links, this.node.hints]) {
+        for(const neighbors of [live_cells, unknown_cells, unknown_links, this.node.hints]) {
             for(const neighbor of neighbors) {
                 modified_ids.push(neighbor.node.id);
             }
@@ -119,14 +122,11 @@ export class SetStatus implements Action {
         for(const id of modified_ids) {
             this.solver.candidates.add(id);
         }
-        if(this.new_status == Status.Dead && this.reason != "click") {
-            if(this.reason != "click") {
-                this.solver.candidates.delete(this.node.id);
-            }
-
+        if(this.new_status == Status.Dead) {
             this.solver.hemichains.delete(this.node.id);
         }
 
+        modified_ids.push(this.node.id);
         return modified_ids;
     }
 }
@@ -327,7 +327,7 @@ export class Solver {
             //this.hemichains.set(id, id);
         }
         for(const id of grid.links.keys()) {
-            this.candidates.add(id);
+            //this.candidates.add(id); // pretty sure we actually don't need this
             this.statuses.set(id, Status.Unknown);
             this.chains.set(id, id);
         }
