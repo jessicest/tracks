@@ -175,7 +175,7 @@ function process_link(solver: Solver, link: Link) : Action | null {
         }
     }
 
-    if(live_cells.length + unknown_cells.length == 2) {
+    if(status == Status.Live) {
         const link_chain_id = solver.chains.get(link.node.id)!;
 
         for(const cell of live_cells) {
@@ -225,7 +225,7 @@ function process_cell(solver: Solver, cell: Cell) : Action | null {
         }
     }
 
-    if(live_links.length + unknown_links.length == 2) {
+    if(status == Status.Live) {
         const cell_chain_id = solver.chains.get(cell.node.id)!;
 
         for(const link of live_links) {
