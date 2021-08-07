@@ -222,12 +222,16 @@ export class View {
             text_color = '#aa0000'; // violation
         } else if(live_cells.length > hint.value) {
             text_color = '#aa0000'; // violation
-        } else if(is_next_candidate) {
-            inner_color = '#ffaa22'; // candidate
-        } else if(is_candidate) {
-            inner_color = '#00aa22'; // candidate
-        } else if(live_cells.length == hint.value && unknown_cells.length == 0) {
-            text_color = '#999999'; // satiated
+        } else {
+            if(is_next_candidate) {
+                inner_color = '#ffaa22'; // candidate
+            } else if(is_candidate) {
+                inner_color = '#00aa22'; // candidate
+            }
+
+            if(live_cells.length == hint.value && unknown_cells.length == 0) {
+                text_color = '#999999'; // satiated
+            }
         }
 
         this.draw_gradient(context, px, py, this.cell_radius, this.cell_radius, inner_color, outer_color);
@@ -347,7 +351,7 @@ export class View {
             if(this.solver.chains.get(cell.node.id)! == this.solver.chains.get(link.node.id)!) {
                 const distance = (cell.pos.y + cell.pos.x) - (link.pos.y + link.pos.x);
                 const cardinal = distance + (link.direction == Direction.South ? 2 : 0);
-                this.draw_chains(context, this.solver.chains, cardinal, px, py, cx, cy, gap, '#880000');
+                //this.draw_chains(context, this.solver.chains, cardinal, px, py, cx, cy, gap, '#880000');
             }
 
             if(this.solver.hemichains.has(cell.node.id) && this.solver.hemichains.has(link.node.id)) {

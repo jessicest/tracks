@@ -1,6 +1,7 @@
 
 // fun grids:
 // 23x20:j9bCg5g56h6a5b5yAeCh5d6f6zyAj6i3a3p9f9g9gAn6i3j9b6ApAiAb63bCnAd5bAb5hCb3CzbAc6m6g5e5cA5zp3uCc,6,7,11,12,12,11,8,9,6,12,12,9,9,8,8,4,6,9,8,S7,11,15,18,18,21,13,11,11,11,8,7,7,14,10,10,13,14,10,9,12,S11,6,2
+// 23x20:w3b5x5sAzxCAoAb9s3d6qCvA9i9n6zi5y3zs63zu6zm6a6p9i,17,15,11,9,10,8,8,4,5,5,1,2,2,S4,5,2,2,3,4,7,8,3,3,7,7,7,10,10,7,7,8,6,10,11,11,7,5,5,4,3,S5,6,2
 
 import {
     Cell,
@@ -82,11 +83,12 @@ export class SetChain implements Action {
                 modified_ids.push(neighbor.node.id);
             }
         }
+        modified_ids.push(this.target.id);
+
         for(const id of modified_ids) {
             this.solver.candidates.add(id);
         }
 
-        modified_ids.push(this.target.id);
         return modified_ids;
     }
 }
@@ -113,7 +115,7 @@ export class SetStatus implements Action {
         const [live_cells, unknown_cells] = this.solver.split_cells(this.node.cells);
         const [_live_links, unknown_links] = this.solver.split_links(this.node.links);
 
-        for(const neighbors of [live_cells, unknown_cells, unknown_links, this.node.hints]) {
+        for(const neighbors of [[this], live_cells, unknown_cells, unknown_links, this.node.hints]) {
             for(const neighbor of neighbors) {
                 modified_ids.push(neighbor.node.id);
             }
@@ -123,10 +125,10 @@ export class SetStatus implements Action {
             this.solver.candidates.add(id);
         }
         if(this.new_status == Status.Dead) {
+            this.solver.candidates.delete(this.node.id);
             this.solver.hemichains.delete(this.node.id);
         }
 
-        modified_ids.push(this.node.id);
         return modified_ids;
     }
 }
