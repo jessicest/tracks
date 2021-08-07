@@ -120,7 +120,11 @@ export class SetStatus implements Action {
             this.solver.candidates.add(id);
         }
         if(this.new_status == Status.Dead && this.reason != "click") {
-            this.solver.candidates.delete(this.node.id);
+            if(this.reason != "click") {
+                this.solver.candidates.delete(this.node.id);
+            }
+
+            this.solver.hemichains.delete(this.node.id);
         }
 
         return modified_ids;
@@ -136,6 +140,27 @@ class Fail implements Action {
 
     execute(): Array<Id> {
         throw new Error("failure executed: " + this.reason);
+    }
+}
+
+// for zone testing: 4x4:d4h8b,2,S2,3,3,3,S3,1,3
+type ZoneId = string;
+
+class Zone {
+    id: ZoneId;
+    progenitor_id: NodeId;
+    index: number;
+    link_count: number;
+    status: Status;
+    contents: Set<NodeId>;
+
+    constructor(progenitor_id: NodeId, index: number) {
+        this.progenitor_id = progenitor_id;
+        this.index = index;
+        this.id = progenitor_id + ":" + index;
+        this.link_count = 0;
+        this.status = Status.Unknown;
+        this.contents = new Set();
     }
 }
 
@@ -299,7 +324,7 @@ export class Solver {
             this.candidates.add(id);
             this.statuses.set(id, Status.Unknown);
             this.chains.set(id, id);
-            this.hemichains.set(id, id);
+            //this.hemichains.set(id, id);
         }
         for(const id of grid.links.keys()) {
             this.candidates.add(id);
@@ -326,23 +351,81 @@ export class Solver {
 
     process() : Action | null {
         const id = this.next_candidate();
-        if(id == null) {
-            return null;
-        }
+        if(id != null) {
+            let result = null;
+            switch(id.charAt(0)) {
+                case 'c': result = process_cell(this, this.grid.cells.get(id)!); break;
+                case 'l': result = process_link(this, this.grid.links.get(id)!); break;
+                case 'h': result = process_hint(this, this.grid.hints.get(id)!); break;
+                default: throw 'bad id format: ' + id;
+            }
 
-        let result = null;
-        switch(id.charAt(0)) {
-            case 'c': result = process_cell(this, this.grid.cells.get(id)!); break;
-            case 'l': result = process_link(this, this.grid.links.get(id)!); break;
-            case 'h': result = process_hint(this, this.grid.hints.get(id)!); break;
-            default: throw 'bad id format: ' + id;
-        }
-
-        if(result != null) {
-            return result;
+            if(result != null) {
+                return result;
+            } else {
+                return new RepealCandidacy(this.candidates, id);
+            }
         } else {
-            return new RepealCandidacy(this.candidates, id);
+            // zone scan time.... if it were working, but it isn't
+            return null; // so we abort
+
+            const [_, root_links] = this.split_links([...this.grid.links.values()]);
+            for(const root_link of root_links) {
+                const [live_root_cells, unknown_root_cells] = this.split_cells(root_link.node.cells);
+                const root_cells = live_root_cells.concat(unknown_root_cells);
+                if(root_cells.length != 2) {
+                    continue;
+                }
+
+                const a_nodes = [root_cells[0].node];
+                const a = new Zone(root_link.node.id, 0);
+                a.contents.add(a_nodes[0].id);
+
+                const b_nodes = [root_cells[1].node];
+                const b = new Zone(root_link.node.id, 1);
+                b.contents.add(b_nodes[0].id);
+
+                while(a.status == Status.Unknown && a_nodes.length > 0) {
+                    const node = a_nodes.pop()!;
+                    const [live_links, unknown_links] = this.split_links(node.links);
+                    const [live_cells, unknown_cells] = this.split_cells(node.cells);
+
+                    a.link_count += live_links.length;
+
+                    for(const neighbor of unknown_links.map(link => link.node)
+                            .concat(live_cells.map(cell => cell.node), unknown_cells.map(cell => cell.node))) {
+                        if(neighbor == b_nodes[0]) {
+                            a.status = Status.Dead;
+                            b.status = Status.Dead;
+                        }
+                        if(!a.contents.has(neighbor.id)) {
+                            a.contents.add(neighbor.id);
+                        }
+                    }
+                }
+
+                if(a.status == Status.Dead) {
+                    if(a.link_count == 0) {
+                        for(const content in a.contents) {
+                            const node = this.grid.cells.has(content) ? this.grid.cells.get(content)!.node : this.grid.links.get(content)!.node;
+                            return new SetStatus(this, node, Status.Dead, reason("empty zone", root_link.node.id));
+                        }
+                    }
+                    continue;
+                } else {
+                    a.status = Status.Live;
+                    b.status = Status.Live;
+                }
+
+                if(a.link_count % 2 == 0) {
+                    return new SetStatus(this, root_link.node, Status.Dead, reason("maintain even zone", root_link.node.id));
+                } else {
+                    return new SetStatus(this, root_link.node, Status.Live, reason("create even zone", root_link.node.id));
+                }
+            }
         }
+
+        return null;
     }
 
     // Split cells into Live, Unknown, and Dead cells
