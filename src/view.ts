@@ -29,19 +29,50 @@ declare global {
   }
 }
 
+interface Sprite {
+    paint(): void;
+}
+
+class Painter {
+/*
+
+// we can create lots of little canvases
+
+// Create a canvas element
+let canvas = document.createElement('canvas');
+canvas.width = 500;
+canvas.height = 400;
+
+// Get the drawing context
+let ctx = canvas.getContext('2d');
+
+// Then you can do stuff, e.g.:
+ctx.fillStyle = '#f00';
+ctx.fillRect(20,10,80,50);
+
+// and then draw them instead of recreating the gradient each time
+        for(const id of grid.hints.keys()) {
+            this.candidates.add(id);
+            this.statuses.set(id, Status.Unknown);
+        }
+
+// so basically let's memoize each drawn sprite
+
+*/
+    
+}
+
 export class View {
     grid!: Grid;
     solver!: Solver;
     canvas: any;
     cell_radius: number;
     link_radius: number;
-    auto_solver: ReturnType<typeof setTimeout> | null;
 
     constructor(canvas: any) {
         this.canvas = canvas;
         this.cell_radius = 1;
         this.link_radius = 1;
-        this.auto_solver = null;
         canvas.addEventListener('click', (event: any) => {
             this.click(true, this.event_pos(event));
             event.preventDefault();
@@ -129,21 +160,23 @@ export class View {
 
             if(new_status != null) {
                 if(is_link) {
-                    this.execute(new SetStatus(this.solver, this.solver.grid.links.get(id)!.node, new_status, "click"));
+                    this.execute(new SetStatus(this.solver, this.solver.grid.links.get(id)!.node, new_status, "click"), true);
                 } else {
-                    this.execute(new SetStatus(this.solver, this.solver.grid.cells.get(id)!.node, new_status, "click"));
+                    this.execute(new SetStatus(this.solver, this.solver.grid.cells.get(id)!.node, new_status, "click"), true);
                 }
             }
         }
     }
 
-    execute(action: Action) {
+    execute(action: Action, paint: boolean) {
         const modified_ids = action.execute();
         const next_candidate = this.solver.next_candidate();
         if(next_candidate != null) {
             modified_ids.push(next_candidate);
         }
-        this.redraw_selection(modified_ids);
+        if(paint) {
+            this.redraw_selection(modified_ids);
+        }
     }
 
     get_state(id: Id): [Status, boolean, boolean] {
@@ -392,10 +425,10 @@ export class View {
         }
     }
 
-    solve_step(): boolean {
+    solve_step(paint: boolean): boolean {
         const action = this.solver.process();
         if(action) {
-            this.execute(action);
+            this.execute(action, paint);
             return true;
         } else {
             return false;
@@ -403,16 +436,28 @@ export class View {
     }
 
     auto_solve_step() {
-        function step() {
-            const solve_rate = parseInt((document.getElementById('solve_rate') as HTMLInputElement).value);
-            if(window.view.solve_step()) {
-                window.view.auto_solver = setTimeout(step, 1001 - solve_rate);
-            } else {
-                window.view.auto_solve_stop();
+        let next_frame_time = 0;
+
+        function step(timestamp: DOMHighResTimeStamp) {
+            if(timestamp >= next_frame_time) {
+                const solve_rate = parseInt((document.getElementById('solve_rate') as HTMLInputElement).value);
+                next_frame_time = timestamp + (1000 / 60);
+
+                for(let i = 0; i < solve_rate; ++i) {
+                    if(performance.now() >= next_frame_time) {
+                        break;
+                    }
+                    if(!window.view.solve_step(true)) {
+                        window.view.auto_solve_stop();
+                        next_frame_time = 0;
+                        return false;
+                    }
+                }
             }
+            window.requestAnimationFrame(step);
         }
 
-        step();
+        window.requestAnimationFrame(step);
     }
 
     auto_solve_start() {
@@ -427,13 +472,11 @@ export class View {
         const button = document.getElementById('auto') as HTMLButtonElement;
         button.innerHTML = 'start';
         button.onclick = window.view.auto_solve_start;
-
-        if(window.view.auto_solver != null) {
-            clearTimeout(window.view.auto_solver);
-        }
+        window.view.redraw();
     }
 
     parse() {
+        window.view.auto_solve_stop();
         const code = (document.getElementById('code') as HTMLInputElement).value;
         this.set_solver(parse_code(code));
     }
