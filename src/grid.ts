@@ -119,13 +119,13 @@ export class GridBuilder {
     grid: Grid;
 
     constructor(xmax: Index, ymax: Index) {
-        this.grid = new Grid(xmax, ymax, new Map(), new Map(), new Map());
+        this.grid = new Grid(xmax, ymax, new Map(), new Map(), new Map(), new Set());
     }
 
-    add_cell(pos: Pos) {
+    add_cell(pos: Pos): CellId {
         const cell = new Cell(pos);
         if(this.grid.cells.has(cell.node.id)) {
-            return;
+            return cell.node.id;
         }
 
         this.grid.cells.set(cell.node.id, cell);
@@ -139,12 +139,20 @@ export class GridBuilder {
 
         this.try_connect_hint_with_cell(make_hint_id(pos.y, Direction.East), cell.node.id);
         this.try_connect_hint_with_cell(make_hint_id(pos.x, Direction.South), cell.node.id);
+
+        return cell.node.id;
     }
 
-    add_link(pos: Pos, direction: Direction) {
+    add_permalink(pos: Pos, direction: Direction): LinkId {
+        const id = this.add_link(pos, direction);
+        this.grid.permalinks.add(id);
+        return id;
+    }
+
+    add_link(pos: Pos, direction: Direction): LinkId {
         const link = new Link(pos, direction);
         if(this.grid.links.has(link.node.id)) {
-            return;
+            return link.node.id;
         }
 
         this.grid.links.set(link.node.id, link);
@@ -162,12 +170,14 @@ export class GridBuilder {
                 this.try_connect_hint_with_link(make_hint_id(pos.x, Direction.South), link.node.id);
                 break;
         }
+
+        return link.node.id;
     }
 
-    add_hint(index: Index, direction: Direction, value: number) {
+    add_hint(index: Index, direction: Direction, value: number): HintId {
         const hint = new Hint(index, direction, value);
         if(this.grid.hints.has(hint.node.id)) {
-            return;
+            return hint.node.id;
         }
 
         this.grid.hints.set(hint.node.id, hint);
@@ -190,6 +200,8 @@ export class GridBuilder {
                 }
                 break;
         }
+
+        return hint.node.id;
     }
 
     try_connect_cell_with_link(cell_id: CellId, link_id: LinkId) {
@@ -232,17 +244,20 @@ export class Grid {
     cells: Map<CellId, Cell>;
     links: Map<LinkId, Link>;
     hints: Map<HintId, Hint>;
+    permalinks: Set<LinkId>;
 
     constructor(xmax: Index,
                 ymax: Index,
                 cells: Map<CellId, Cell>,
                 links: Map<LinkId, Link>,
-                hints: Map<HintId, Hint>) {
+                hints: Map<HintId, Hint>,
+                permalinks: Set<LinkId>) {
         this.xmax = xmax;
         this.ymax = ymax;
         this.cells = cells;
         this.links = links;
         this.hints = hints;
+        this.permalinks = permalinks;
     }
 }
 
@@ -288,7 +303,7 @@ export function make_grid(cx: Index, cy: Index, live_links: Array<LinkContent>, 
 
     // add live links (this will add the offramps)
     for(const link_content of live_links) {
-        builder.add_link(link_content.pos, link_content.direction);
+        builder.add_permalink(link_content.pos, link_content.direction);
     }
 
     // add hints

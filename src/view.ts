@@ -17,11 +17,15 @@ import {
 import {
     Action,
     SetStatus,
-    Solver,
+    GridState,
     Status,
-    make_solver,
+    make_grid_state,
     parse_code
-} from './solver.js';
+} from './grid_state.js';
+
+import {
+    RuleReducer
+} from './rule_reducer.js';
 
 declare global {
   interface Window {
@@ -64,7 +68,8 @@ ctx.fillRect(20,10,80,50);
 
 export class View {
     grid!: Grid;
-    solver!: Solver;
+    grid_state!: GridState;
+    rule_reducer!: RuleReducer;
     canvas: any;
     cell_radius: number;
     link_radius: number;
@@ -86,7 +91,7 @@ export class View {
             return false;
         });
 
-        this.set_solver(make_solver(4, 4, [
+        this.set_grid_state(make_grid_state(4, 4, [
                 { pos: { x: 1, y: 1 }, direction: Direction.South },
                 { pos: { x: 0, y: 2 }, direction: Direction.East },
                 { pos: { x: 1, y: 4 }, direction: Direction.East },
@@ -109,9 +114,11 @@ export class View {
         this.canvas.height = this.grid.ymax * (cell_diameter + link_diameter) + this.link_radius * 5 + this.cell_radius * 2;
     }
 
-    set_solver(solver: Solver) {
-        this.grid = solver.grid;
-        this.solver = solver;
+    set_grid_state(grid_state: GridState) {
+        this.grid = grid_state.grid;
+        this.grid_state = grid_state;
+        this.rule_reducer = new RuleReducer(grid_state, new Set(), new Map(), new Map());
+        this.rule_reducer.initialize();
         this.resize_canvas();
         this.redraw();
     }
@@ -146,7 +153,7 @@ export class View {
         }
 
         if(id != null) {
-            const status = this.solver.statuses.get(id);
+            const status = this.grid_state.statuses.get(id);
             let new_status;
             if(left_click && status == Status.Live) {
                 new_status = Status.Unknown;
@@ -160,29 +167,41 @@ export class View {
 
             if(new_status != null) {
                 if(is_link) {
-                    this.execute(new SetStatus(this.solver, this.solver.grid.links.get(id)!.node, new_status, "click"), true);
+                    this.execute(new SetStatus(this.grid_state, this.grid_state.grid.links.get(id)!.node, new_status, "click"), true);
                 } else {
-                    this.execute(new SetStatus(this.solver, this.solver.grid.cells.get(id)!.node, new_status, "click"), true);
+                    this.execute(new SetStatus(this.grid_state, this.grid_state.grid.cells.get(id)!.node, new_status, "click"), true);
                 }
             }
         }
     }
 
     execute(action: Action, paint: boolean) {
-        const modified_ids = action.execute();
-        const next_candidate = this.solver.next_candidate();
+        const outcome = action.execute();
+        const modified_ids = outcome.modified_ids.slice();
+
+        for(const entry of outcome.candidacy_changes.entries()) {
+            modified_ids.push(entry[0]);
+            if(entry[1]) {
+                this.rule_reducer.candidates.add(entry[0]);
+            } else {
+                this.rule_reducer.candidates.delete(entry[0]);
+            }
+        }
+
+        const next_candidate = this.rule_reducer.next_candidate();
         if(next_candidate != null) {
             modified_ids.push(next_candidate);
         }
+
         if(paint) {
             this.redraw_selection(modified_ids);
         }
     }
 
     get_state(id: Id): [Status, boolean, boolean] {
-        const status = this.solver.statuses.get(id)!;
-        const is_candidate = this.solver.candidates.has(id);
-        const is_next_candidate = (id == this.solver.next_candidate());
+        const status = this.grid_state.statuses.get(id)!;
+        const is_candidate = this.rule_reducer.candidates.has(id);
+        const is_next_candidate = (id == this.rule_reducer.next_candidate());
         return [status, is_candidate, is_next_candidate];
     }
 
@@ -245,7 +264,7 @@ export class View {
         const [_status, is_candidate, is_next_candidate] = this.get_state(hint.node.id);
 
         const num_cells = hint.node.cells.length;
-        const [live_cells, unknown_cells] = this.solver.split_cells(hint.node.cells);
+        const [live_cells, unknown_cells] = this.grid_state.split_cells(hint.node.cells);
 
         let text_color = '#000000'; // neutral
         let inner_color = '#ffffff'; // neutral
@@ -381,17 +400,17 @@ export class View {
         this.draw_gradient(context, px, py, cx, cy, inner_color, outer_color);
 
         for(const cell of link.node.cells) {
-            if(this.solver.chains.get(cell.node.id)! == this.solver.chains.get(link.node.id)!) {
+            if(this.rule_reducer.chains.get(cell.node.id)! == this.rule_reducer.chains.get(link.node.id)!) {
                 const distance = (cell.pos.y + cell.pos.x) - (link.pos.y + link.pos.x);
                 const cardinal = distance + (link.direction == Direction.South ? 2 : 0);
-                //this.draw_chains(context, this.solver.chains, cardinal, px, py, cx, cy, gap, '#880000');
+                //this.draw_chains(context, this.rule_reducer.chains, cardinal, px, py, cx, cy, gap, '#880000');
             }
 
-            if(this.solver.hemichains.has(cell.node.id) && this.solver.hemichains.has(link.node.id)) {
-                if(this.solver.hemichains.get(cell.node.id)! == this.solver.hemichains.get(link.node.id)!) {
+            if(this.rule_reducer.hemichains.has(cell.node.id) && this.rule_reducer.hemichains.has(link.node.id)) {
+                if(this.rule_reducer.hemichains.get(cell.node.id)! == this.rule_reducer.hemichains.get(link.node.id)!) {
                     const distance = (cell.pos.y + cell.pos.x) - (link.pos.y + link.pos.x);
                     const cardinal = distance + (link.direction == Direction.South ? 2 : 0);
-                    this.draw_chains(context, this.solver.hemichains, cardinal,
+                    this.draw_chains(context, this.rule_reducer.hemichains, cardinal,
                                      px, py, cx, cy, 3 * gap / 2, '#333333');
                 }
             }
@@ -426,7 +445,7 @@ export class View {
     }
 
     solve_step(paint: boolean): boolean {
-        const action = this.solver.process();
+        const action = this.rule_reducer.process();
         if(action) {
             this.execute(action, paint);
             return true;
@@ -478,7 +497,7 @@ export class View {
     parse() {
         window.view.auto_solve_stop();
         const code = (document.getElementById('code') as HTMLInputElement).value;
-        this.set_solver(parse_code(code));
+        this.set_grid_state(parse_code(code));
     }
 }
 

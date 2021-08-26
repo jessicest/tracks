@@ -4,14 +4,18 @@ import {
     Grid,
     Index,
     LinkContent,
-    make_grid,
     make_hints,
     make_link_id
 } from './grid.js';
 
 import {
-    Solver
-} from './solver.js';
+    GridState,
+    make_grid_state,
+} from './grid_state.js';
+
+import {
+    RuleReducer
+} from './rule_reducer.js';
 
 /*
 elaborate:
@@ -36,14 +40,14 @@ other advanced rule:
  - when we can only just reach
 */
 
-function to_string(solver: Solver): string {
+function to_string(grid_state: GridState): string {
     let output = '';
 
-    const [live_cells, unknown_cells] = solver.split_cells(Array.from(solver.grid.cells.values()));
-    output += 'cell counts: (' + live_cells.length + ', ' + unknown_cells.length + ', ' + solver.grid.cells.size + ')\n';
+    const [live_cells, unknown_cells] = grid_state.split_cells(Array.from(grid_state.grid.cells.values()));
+    output += 'cell counts: (' + live_cells.length + ', ' + unknown_cells.length + ', ' + grid_state.grid.cells.size + ')\n';
 
-    const [live_links, unknown_links] = solver.split_links(Array.from(solver.grid.links.values()));
-    output += 'link counts: (' + live_links.length + ', ' + unknown_links.length + ', ' + solver.grid.links.size + ')\n';
+    const [live_links, unknown_links] = grid_state.split_links(Array.from(grid_state.grid.links.values()));
+    output += 'link counts: (' + live_links.length + ', ' + unknown_links.length + ', ' + grid_state.grid.links.size + ')\n';
 
     return output;
 }
@@ -65,7 +69,7 @@ function main() {
     */
 
     // 8x8:n9a5a3g5a9k3i5hCd,7,8,8,S7,6,4,5,2,8,7,S5,6,7,5,5,4
-    const grid = make_grid(8, 8, [
+    const grid_state = make_grid_state(8, 8, [
             link(0, 3, false),
             link(1, 3, false),
             link(1, 6, false),
@@ -85,14 +89,14 @@ function main() {
         ],
         make_hints([7,8,8,7,6,4,5,2], [8,7,5,6,7,5,5,4])
     );
+    console.log(to_string(grid_state));
 
-    const solver = new Solver(grid);
-    console.log(to_string(solver));
-
-    solver.solve();
+    const rule_reducer = new RuleReducer(grid_state, new Set(), new Map(), new Map());
+    rule_reducer.initialize();
+    rule_reducer.reduce();
 
     console.log();
-    console.log(to_string(solver));
+    console.log(to_string(grid_state));
 }
 
 main();
