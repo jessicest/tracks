@@ -91,7 +91,7 @@ function main() {
     );
     console.log(to_string(grid_state));
 
-    const rule_reducer = new RuleReducer(grid_state, new Set(), new Map(), new Map());
+    const rule_reducer = new RuleReducer(grid_state, new Set(), new Map(), false);
     rule_reducer.initialize();
     rule_reducer.reduce();
 

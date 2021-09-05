@@ -73,11 +73,14 @@ export class View {
     canvas: any;
     cell_radius: number;
     link_radius: number;
+    paused: boolean;
 
     constructor(canvas: any) {
         this.canvas = canvas;
         this.cell_radius = 1;
         this.link_radius = 1;
+        this.paused = true;
+
         canvas.addEventListener('click', (event: any) => {
             this.click(true, this.event_pos(event));
             event.preventDefault();
@@ -117,7 +120,7 @@ export class View {
     set_grid_state(grid_state: GridState) {
         this.grid = grid_state.grid;
         this.grid_state = grid_state;
-        this.rule_reducer = new RuleReducer(grid_state, new Set(), new Map(), new Map());
+        this.rule_reducer = new RuleReducer(grid_state, new Set(), new Map(), true);
         this.rule_reducer.initialize();
         this.resize_canvas();
         this.redraw();
@@ -390,20 +393,13 @@ export class View {
         this.draw_gradient(context, px, py, cx, cy, inner_color, outer_color);
 
         for(const cell of link.node.cells) {
+            /*
             if(this.rule_reducer.chains.get(cell.node.id)! == this.rule_reducer.chains.get(link.node.id)!) {
                 const distance = (cell.pos.y + cell.pos.x) - (link.pos.y + link.pos.x);
                 const cardinal = distance + (link.direction == Direction.South ? 2 : 0);
-                //this.draw_chains(context, this.rule_reducer.chains, cardinal, px, py, cx, cy, gap, '#880000');
+                this.draw_chains(context, this.rule_reducer.chains, cardinal, px, py, cx, cy, gap, '#880000');
             }
-
-            if(this.rule_reducer.hemichains.has(cell.node.id) && this.rule_reducer.hemichains.has(link.node.id)) {
-                if(this.rule_reducer.hemichains.get(cell.node.id)! == this.rule_reducer.hemichains.get(link.node.id)!) {
-                    const distance = (cell.pos.y + cell.pos.x) - (link.pos.y + link.pos.x);
-                    const cardinal = distance + (link.direction == Direction.South ? 2 : 0);
-                    this.draw_chains(context, this.rule_reducer.hemichains, cardinal,
-                                     px, py, cx, cy, 3 * gap / 2, '#333333');
-                }
-            }
+            */
         }
     }
 
@@ -448,6 +444,9 @@ export class View {
         let next_frame_time = 0;
 
         function step(timestamp: DOMHighResTimeStamp) {
+            if(window.view.paused) {
+                return;
+            }
             if(timestamp >= next_frame_time) {
                 const solve_rate = parseInt((document.getElementById('solve_rate') as HTMLInputElement).value);
                 next_frame_time = timestamp + (1000 / 60);
@@ -470,6 +469,7 @@ export class View {
     }
 
     auto_solve_start() {
+        window.view.paused = false;
         const button = document.getElementById('auto') as HTMLButtonElement;
         button.innerHTML = 'stop';
         button.onclick = window.view.auto_solve_stop;
@@ -478,6 +478,7 @@ export class View {
     }
 
     auto_solve_stop() {
+        window.view.paused = true;
         const button = document.getElementById('auto') as HTMLButtonElement;
         button.innerHTML = 'start';
         button.onclick = window.view.auto_solve_start;

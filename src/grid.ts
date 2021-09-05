@@ -259,6 +259,15 @@ export class Grid {
         this.hints = hints;
         this.permalinks = permalinks;
     }
+
+    node(id: Id): Node {
+        switch(id.charAt(0)) {
+            case 'c': return this.cells.get(id)!.node;
+            case 'l': return this.links.get(id)!.node;
+            case 'h': return this.hints.get(id)!.node;
+            default: throw 'unhelpful id format: ' + id;
+        }
+    }
 }
 
 export function make_hints(hints_north_south: Array<number>, hints_east_west: Array<number>): Array<HintContent> {

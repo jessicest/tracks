@@ -35,19 +35,24 @@ export class RepealCandidacy implements Action {
 }
 
 export class SetStatus implements Action {
-    candidates: Set<Id>;
+    rule_reducer: RuleReducer;
     set_status: SetGridStatus;
 
     constructor(rule_reducer: RuleReducer, node: Node, new_status: Status, reason: string) {
-        this.candidates = rule_reducer.candidates;
+        this.rule_reducer = rule_reducer;
         this.set_status = new SetGridStatus(rule_reducer.grid_state, node, new_status, reason);
     }
 
     execute(): Array<Id> {
+        if(this.rule_reducer.mode != Mode.Rules) {
+            this.rule_reducer.mode = Mode.Rules;
+            this.rule_reducer.candidates.clear();
+        }
+
         const modified_ids = this.set_status.execute();
 
         for(const id of modified_ids) {
-            this.candidates.add(id);
+            this.rule_reducer.candidates.add(id);
         }
 
         return modified_ids;
@@ -55,15 +60,15 @@ export class SetStatus implements Action {
 }
 
 export class SetChain implements Action {
-    grid_state: GridState;
+    rule_reducer: RuleReducer;
     chains: Map<Id, Id>;
     target: Node;
     chain_id: Id;
     reason: string;
 
     constructor(rule_reducer: RuleReducer, chains: Map<Id, Id>, target: Node, chain_id: Id, reason: string) {
-        this.grid_state = rule_reducer.grid_state;
-        this.chains = rule_reducer.chains;
+        this.rule_reducer = rule_reducer;
+        this.chains = chains;
         this.target = target;
         this.chain_id = chain_id;
         this.reason = reason;
@@ -73,41 +78,59 @@ export class SetChain implements Action {
         output('node ' + this.target.id + ' joins ' + this.chain_id + '; ' + this.reason);
         this.chains.set(this.target.id, this.chain_id);
 
-        const [live_cells, unknown_cells] = this.grid_state.split_cells(this.target.cells);
-        const [live_links, unknown_links] = this.grid_state.split_links(this.target.links);
+        const [live_cells, unknown_cells] = this.rule_reducer.grid_state.split_cells(this.target.cells);
+        const [live_links, unknown_links] = this.rule_reducer.grid_state.split_links(this.target.links);
 
         const modified_ids = [this.target.id];
         for(const neighbors of [live_cells, unknown_cells, live_links, unknown_links]) {
             for(const neighbor of neighbors) {
                 modified_ids.push(neighbor.node.id);
+                this.rule_reducer.candidates.add(neighbor.node.id);
             }
         }
         return modified_ids;
     }
 }
 
+const enum Mode {
+    Rules,
+    Experimentation,
+}
+
 export class RuleReducer {
     grid_state: GridState;
     candidates: Set<Id>;
+    test_subjects: Set<Id>;
     chains: Map<Id, Id>;
-    hemichains: Map<Id, Id>;
+    mode: Mode;
+    allow_experimentation: boolean;
 
     constructor(
         grid_state: GridState,
         candidates: Set<Id>,
         chains: Map<Id, Id>,
-        hemichains: Map<Id, Id>) {
+        allow_experimentation: boolean) {
         this.grid_state = grid_state;
         this.candidates = candidates;
+        this.test_subjects = new Set();
         this.chains = chains;
-        this.hemichains = hemichains;
+        this.mode = Mode.Rules;
+        this.allow_experimentation = allow_experimentation;
+    }
+
+    clone() {
+        return new RuleReducer(
+            this.grid_state.clone(),
+            new Set(this.candidates),
+            new Map(this.chains),
+            this.allow_experimentation
+        );
     }
 
     initialize() {
         for(const id of this.grid_state.grid.cells.keys()) {
             this.candidates.add(id);
             this.chains.set(id, id);
-            //this.hemichains.set(id, id);
         }
         for(const id of this.grid_state.grid.links.keys()) {
             this.chains.set(id, id);
@@ -131,10 +154,45 @@ export class RuleReducer {
 
     next_candidate() : Id | null {
         return this.candidates.values().next().value;
+        //const c = [...this.candidates.values()];
+        //return c[Math.floor(Math.random() * c.length)];
     }
 
     process(): Action | null {
+        if(this.mode == Mode.Rules) {
+            const action = this.process_rules();
+            if(action != null) {
+                return action;
+            } else if(this.allow_experimentation) {
+                this.mode = Mode.Experimentation;
+                for(const id of this.grid_state.grid.cells.keys()) {
+                    if(this.grid_state.statuses.get(id) == Status.Unknown) {
+                        this.candidates.add(id);
+                    }
+                }
+                for(const id of this.grid_state.grid.links.keys()) {
+                    if(this.grid_state.statuses.get(id) == Status.Unknown) {
+                        this.candidates.add(id);
+                    }
+                }
+            }
+        }
+
+        if(this.mode == Mode.Experimentation) {
+            const action = this.process_experimentation();
+            if(action != null) {
+                return action;
+            } else {
+                return null;
+            }
+        }
+
+        return null;
+    }
+
+    process_rules(): Action | null {
         const id = this.next_candidate();
+
         if(id != null) {
             let result = null;
             switch(id.charAt(0)) {
@@ -150,62 +208,103 @@ export class RuleReducer {
                 return new RepealCandidacy(this.candidates, id);
             }
         } else {
-            // zone scan time.... if it were working, but it isn't
-            return null; // so we abort
+            return null;
+        }
+    }
 
-            const [_, root_links] = this.grid_state.split_links([...this.grid_state.grid.links.values()]);
-            for(const root_link of root_links) {
-                const [live_root_cells, unknown_root_cells] = this.grid_state.split_cells(root_link.node.cells);
-                const root_cells = live_root_cells.concat(unknown_root_cells);
-                if(root_cells.length != 2) {
-                    continue;
+    process_experimentation(): Action | null {
+        const id = this.next_candidate();
+        if(id == null) {
+            return null;
+        }
+        const status = this.grid_state.statuses.get(id);
+
+        const results = new Array();
+        for(const status of [Status.Live, Status.Dead]) {
+            const guess = this.clone();
+            guess.allow_experimentation = false;
+            const action = new SetStatus(guess, this.grid_state.grid.node(id), status, reason("idk i just guessed", id));
+            action.execute();
+
+            while(true) {
+                const action = guess.process();
+                if(action == null) {
+                    results.push([true, status]);
+                    break;
+                } else if(action.constructor === Fail) {
+                    results.push([false, status]);
+                    break;
+                } else {
+                    action.execute();
                 }
+            }
+        }
 
-                const a_nodes = [root_cells[0].node];
-                const a = new Zone(root_link.node.id, 0);
-                a.contents.add(a_nodes[0].id);
+        if(results[0][0] && !results[1][0]) {
+            return new SetStatus(this, this.grid_state.grid.node(id), results[0][1], reason("because my guess shone true", id));
+        } else if(!results[0][0] && results[1][0]) {
+            return new SetStatus(this, this.grid_state.grid.node(id), results[1][1], reason("because my guess shone true", id));
+        }
 
-                const b_nodes = [root_cells[1].node];
-                const b = new Zone(root_link.node.id, 1);
-                b.contents.add(b_nodes[0].id);
+        return new RepealCandidacy(this.candidates, id);
+    }
 
-                while(a.status == Status.Unknown && a_nodes.length > 0) {
-                    const node = a_nodes.pop()!;
-                    const [live_links, unknown_links] = this.grid_state.split_links(node.links);
-                    const [live_cells, unknown_cells] = this.grid_state.split_cells(node.cells);
+    process_zones(): Action | null {
+        // zone scan time.... if it were working, but it isn't
+        return null; // so we abort
 
-                    a.link_count += live_links.length;
+        const [_, root_links] = this.grid_state.split_links([...this.grid_state.grid.links.values()]);
+        for(const root_link of root_links) {
+            const [live_root_cells, unknown_root_cells] = this.grid_state.split_cells(root_link.node.cells);
+            const root_cells = live_root_cells.concat(unknown_root_cells);
+            if(root_cells.length != 2) {
+                continue;
+            }
 
-                    for(const neighbor of unknown_links.map(link => link.node)
-                            .concat(live_cells.map(cell => cell.node), unknown_cells.map(cell => cell.node))) {
-                        if(neighbor == b_nodes[0]) {
-                            a.status = Status.Dead;
-                            b.status = Status.Dead;
-                        }
-                        if(!a.contents.has(neighbor.id)) {
-                            a.contents.add(neighbor.id);
-                        }
+            const a_nodes = [root_cells[0].node];
+            const a = new Zone(root_link.node.id, 0);
+            a.contents.add(a_nodes[0].id);
+
+            const b_nodes = [root_cells[1].node];
+            const b = new Zone(root_link.node.id, 1);
+            b.contents.add(b_nodes[0].id);
+
+            while(a.status == Status.Unknown && a_nodes.length > 0) {
+                const node = a_nodes.pop()!;
+                const [live_links, unknown_links] = this.grid_state.split_links(node.links);
+                const [live_cells, unknown_cells] = this.grid_state.split_cells(node.cells);
+
+                a.link_count += live_links.length;
+
+                for(const neighbor of unknown_links.map(link => link.node)
+                        .concat(live_cells.map(cell => cell.node), unknown_cells.map(cell => cell.node))) {
+                    if(neighbor == b_nodes[0]) {
+                        a.status = Status.Dead;
+                        b.status = Status.Dead;
+                    }
+                    if(!a.contents.has(neighbor.id)) {
+                        a.contents.add(neighbor.id);
                     }
                 }
+            }
 
-                if(a.status == Status.Dead) {
-                    if(a.link_count == 0) {
-                        for(const content in a.contents) {
-                            const node = this.grid_state.grid.cells.has(content) ? this.grid_state.grid.cells.get(content)!.node : this.grid_state.grid.links.get(content)!.node;
-                            return new SetStatus(this, node, Status.Dead, reason("empty zone", root_link.node.id));
-                        }
+            if(a.status == Status.Dead) {
+                if(a.link_count == 0) {
+                    for(const content in a.contents) {
+                        const node = this.grid_state.grid.cells.has(content) ? this.grid_state.grid.cells.get(content)!.node : this.grid_state.grid.links.get(content)!.node;
+                        return new SetStatus(this, node, Status.Dead, reason("empty zone", root_link.node.id));
                     }
-                    continue;
-                } else {
-                    a.status = Status.Live;
-                    b.status = Status.Live;
                 }
+                continue;
+            } else {
+                a.status = Status.Live;
+                b.status = Status.Live;
+            }
 
-                if(a.link_count % 2 == 0) {
-                    return new SetStatus(this, root_link.node, Status.Dead, reason("maintain even zone", root_link.node.id));
-                } else {
-                    return new SetStatus(this, root_link.node, Status.Live, reason("create even zone", root_link.node.id));
-                }
+            if(a.link_count % 2 == 0) {
+                return new SetStatus(this, root_link.node, Status.Dead, reason("maintain even zone", root_link.node.id));
+            } else {
+                return new SetStatus(this, root_link.node, Status.Live, reason("create even zone", root_link.node.id));
             }
         }
 
@@ -272,15 +371,6 @@ export class RuleReducer {
             }
         }
 
-        if(live_links.length + unknown_links.length == 2 && this.hemichains.has(cell.node.id)) {
-            for(const link of live_links.concat(unknown_links)) {
-                const action = this.try_propagate_chain(this.hemichains, cell.node, link.node, "cell->hemichain propagation");
-                if(action != null) {
-                    return action;
-                }
-            }
-        }
-
         return null;
     }
 
@@ -306,15 +396,6 @@ export class RuleReducer {
         if(status == Status.Live) {
             for(const cell of live_cells) {
                 const action = this.try_propagate_chain(this.chains, link.node, cell.node, "link->chain propagation");
-                if(action != null) {
-                    return action;
-                }
-            }
-        }
-
-        if(live_cells.length + unknown_cells.length == 2 && this.hemichains.has(link.node.id)) {
-            for(const cell of live_cells.concat(unknown_cells)) {
-                const action = this.try_propagate_chain(this.hemichains, link.node, cell.node, "link->hemichain propagation");
                 if(action != null) {
                     return action;
                 }

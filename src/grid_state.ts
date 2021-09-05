@@ -112,6 +112,10 @@ export class GridState {
         this.statuses = statuses;
     }
 
+    clone(): GridState {
+        return new GridState(this.grid, new Map(this.statuses));
+    }
+
     initialize() {
         for(const id of this.grid.cells.keys()) {
             this.statuses.set(id, Status.Unknown);
@@ -125,10 +129,6 @@ export class GridState {
         for(const id of this.grid.permalinks) {
             this.statuses.set(id, Status.Live);
         }
-    }
-
-    clone(): GridState {
-        return new GridState(this.grid, new Map(this.statuses));
     }
 
     // Split cells into Live, Unknown, and Dead cells
