@@ -5,3 +5,6 @@ has some pretty tricky parts:
 23x20:j5zv9g6wAaCzzbAf5r6e5g6j3aAgCd9ChA3aAq5C3dCtCcAs3qAa6zzAzn95a6zo9c,8,10,10,6,3,1,2,3,2,5,7,7,8,4,4,8,9,9,7,S9,15,15,19,4,5,8,8,8,11,13,16,13,16,18,9,8,5,5,4,4,6,S6,4
 
 23x20:lCh5q9q3cAbA9CtAo5b3a9p5b5f6p9fCzr9b6zs9sAc9rAg9s6d9dCh6yAzzzj9a,7,11,10,4,1,3,3,2,1,3,5,6,9,7,10,9,8,7,6,8,13,S12,19,12,11,11,10,13,11,9,8,5,S5,5,7,6,8,14,13,10,3,1,2
+
+tough!
+21x21:zzb6xCzg3yCf6a35rAt6jAi9zzzpAzj3bCi6zzzfC,7,6,7,4,1,3,2,2,4,8,4,15,7,5,4,1,2,2,6,12,S20,8,7,7,8,7,8,8,9,5,S5,4,6,5,7,3,6,9,5,1,2,2

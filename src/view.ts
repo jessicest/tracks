@@ -16,7 +16,6 @@ import {
 
 import {
     Action,
-    SetStatus,
     GridState,
     Status,
     make_grid_state,
@@ -24,7 +23,8 @@ import {
 } from './grid_state.js';
 
 import {
-    RuleReducer
+    RuleReducer,
+    SetStatus
 } from './rule_reducer.js';
 
 declare global {
@@ -167,26 +167,16 @@ export class View {
 
             if(new_status != null) {
                 if(is_link) {
-                    this.execute(new SetStatus(this.grid_state, this.grid_state.grid.links.get(id)!.node, new_status, "click"), true);
+                    this.execute(new SetStatus(this.rule_reducer, this.grid_state.grid.links.get(id)!.node, new_status, "click"), true);
                 } else {
-                    this.execute(new SetStatus(this.grid_state, this.grid_state.grid.cells.get(id)!.node, new_status, "click"), true);
+                    this.execute(new SetStatus(this.rule_reducer, this.grid_state.grid.cells.get(id)!.node, new_status, "click"), true);
                 }
             }
         }
     }
 
     execute(action: Action, paint: boolean) {
-        const outcome = action.execute();
-        const modified_ids = outcome.modified_ids.slice();
-
-        for(const entry of outcome.candidacy_changes.entries()) {
-            modified_ids.push(entry[0]);
-            if(entry[1]) {
-                this.rule_reducer.candidates.add(entry[0]);
-            } else {
-                this.rule_reducer.candidates.delete(entry[0]);
-            }
-        }
+        const modified_ids = action.execute().slice();
 
         const next_candidate = this.rule_reducer.next_candidate();
         if(next_candidate != null) {

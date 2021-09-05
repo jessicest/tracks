@@ -26,18 +26,8 @@ export const enum Status {
     Dead,
 }
 
-export class Outcome {
-    candidacy_changes: Map<Id, boolean>;
-    modified_ids: Array<Id>;
-
-    constructor() {
-        this.candidacy_changes = new Map();
-        this.modified_ids = new Array();
-    }
-}
-
 export interface Action {
-    execute(): Outcome;
+    execute(): Array<Id>;
 }
 
 export function output(s: string) {
@@ -46,40 +36,6 @@ export function output(s: string) {
 
 export function reason(label: string, id: string): string {
     return label + ': ' + id;
-}
-
-export class SetChain implements Action {
-    grid_state: GridState;
-    chains: Map<Id, Id>;
-    target: Node;
-    chain_id: Id;
-    reason: string;
-
-    constructor(grid_state: GridState, chains: Map<Id, Id>, target: Node, chain_id: Id, reason: string) {
-        this.grid_state = grid_state;
-        this.chains = chains;
-        this.target = target;
-        this.chain_id = chain_id;
-        this.reason = reason;
-    }
-
-    execute(): Outcome {
-        output('node ' + this.target.id + ' joins ' + this.chain_id + '; ' + this.reason);
-        this.chains.set(this.target.id, this.chain_id);
-
-        const [live_cells, unknown_cells] = this.grid_state.split_cells(this.target.cells);
-        const [live_links, unknown_links] = this.grid_state.split_links(this.target.links);
-
-        const outcome = new Outcome();
-
-        for(const neighbors of [live_cells, unknown_cells, live_links, unknown_links]) {
-            for(const neighbor of neighbors) {
-                outcome.candidacy_changes.set(neighbor.node.id, true);
-            }
-        }
-        outcome.candidacy_changes.set(this.target.id, true);
-        return outcome;
-    }
 }
 
 export class SetStatus implements Action {
@@ -95,9 +51,9 @@ export class SetStatus implements Action {
         this.reason = reason;
     }
 
-    execute(): Outcome {
+    execute(): Array<Id> {
         output(this.node.id + ' -> ' + this.new_status + '; ' + this.reason);
-        const outcome = new Outcome();
+        const modified_ids = new Array();
 
         this.grid_state.statuses.set(this.node.id, this.new_status);
 
@@ -106,18 +62,11 @@ export class SetStatus implements Action {
 
         for(const neighbors of [[this], live_cells, unknown_cells, unknown_links, this.node.hints]) {
             for(const neighbor of neighbors) {
-                outcome.candidacy_changes.set(neighbor.node.id, true);
+                modified_ids.push(neighbor.node.id);
             }
         }
 
-        /*
-        if(this.new_status == Status.Dead) {
-            this.grid_state.candidates.delete(this.node.id);
-            //this.grid_state.hemichains.delete(this.node.id);
-        }
-        */
-
-        return outcome;
+        return modified_ids;
     }
 }
 
@@ -128,7 +77,7 @@ export class Fail implements Action {
         this.reason = reason;
     }
 
-    execute(): Outcome {
+    execute(): Array<Id> {
         throw new Error("failure executed: " + this.reason);
     }
 }

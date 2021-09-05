@@ -10,9 +10,7 @@ import {
 import {
     Action,
     Fail,
-    Outcome,
-    SetChain,
-    SetStatus,
+    SetStatus as SetGridStatus,
     GridState,
     Status,
     Zone,
@@ -29,12 +27,62 @@ export class RepealCandidacy implements Action {
         this.id = id;
     }
 
-    execute(): Outcome {
+    execute(): Array<Id> {
         output('clear: ' + this.id);
         this.candidates.delete(this.id);
-        const outcome = new Outcome();
-        outcome.modified_ids.push(this.id);
-        return outcome;
+        return [this.id];
+    }
+}
+
+export class SetStatus implements Action {
+    candidates: Set<Id>;
+    set_status: SetGridStatus;
+
+    constructor(rule_reducer: RuleReducer, node: Node, new_status: Status, reason: string) {
+        this.candidates = rule_reducer.candidates;
+        this.set_status = new SetGridStatus(rule_reducer.grid_state, node, new_status, reason);
+    }
+
+    execute(): Array<Id> {
+        const modified_ids = this.set_status.execute();
+
+        for(const id of modified_ids) {
+            this.candidates.add(id);
+        }
+
+        return modified_ids;
+    }
+}
+
+export class SetChain implements Action {
+    grid_state: GridState;
+    chains: Map<Id, Id>;
+    target: Node;
+    chain_id: Id;
+    reason: string;
+
+    constructor(rule_reducer: RuleReducer, chains: Map<Id, Id>, target: Node, chain_id: Id, reason: string) {
+        this.grid_state = rule_reducer.grid_state;
+        this.chains = rule_reducer.chains;
+        this.target = target;
+        this.chain_id = chain_id;
+        this.reason = reason;
+    }
+
+    execute(): Array<Id> {
+        output('node ' + this.target.id + ' joins ' + this.chain_id + '; ' + this.reason);
+        this.chains.set(this.target.id, this.chain_id);
+
+        const [live_cells, unknown_cells] = this.grid_state.split_cells(this.target.cells);
+        const [live_links, unknown_links] = this.grid_state.split_links(this.target.links);
+
+        const modified_ids = [this.target.id];
+        for(const neighbors of [live_cells, unknown_cells, live_links, unknown_links]) {
+            for(const neighbor of neighbors) {
+                modified_ids.push(neighbor.node.id);
+            }
+        }
+        return modified_ids;
     }
 }
 
@@ -144,7 +192,7 @@ export class RuleReducer {
                     if(a.link_count == 0) {
                         for(const content in a.contents) {
                             const node = this.grid_state.grid.cells.has(content) ? this.grid_state.grid.cells.get(content)!.node : this.grid_state.grid.links.get(content)!.node;
-                            return new SetStatus(this.grid_state, node, Status.Dead, reason("empty zone", root_link.node.id));
+                            return new SetStatus(this, node, Status.Dead, reason("empty zone", root_link.node.id));
                         }
                     }
                     continue;
@@ -154,9 +202,9 @@ export class RuleReducer {
                 }
 
                 if(a.link_count % 2 == 0) {
-                    return new SetStatus(this.grid_state, root_link.node, Status.Dead, reason("maintain even zone", root_link.node.id));
+                    return new SetStatus(this, root_link.node, Status.Dead, reason("maintain even zone", root_link.node.id));
                 } else {
-                    return new SetStatus(this.grid_state, root_link.node, Status.Live, reason("create even zone", root_link.node.id));
+                    return new SetStatus(this, root_link.node, Status.Live, reason("create even zone", root_link.node.id));
                 }
             }
         }
@@ -173,9 +221,9 @@ export class RuleReducer {
         }
 
         if(chain1 != null && (chain2 == null || chain1 < chain2)) {
-            return new SetChain(this.grid_state, chains, node2, chain1, reason(reason_string, node1.id));
+            return new SetChain(this, chains, node2, chain1, reason(reason_string, node1.id));
         } else if(chain2 != null && (chain1 == null || chain2 < chain1)) {
-            return new SetChain(this.grid_state, chains, node1, chain2, reason(reason_string, node2.id));
+            return new SetChain(this, chains, node1, chain2, reason(reason_string, node2.id));
         }
 
         return null;
@@ -196,22 +244,22 @@ export class RuleReducer {
         if(status == Status.Live) {
             if(unknown_links.length > 0) {
                 if(live_links.length == 2) {
-                    return new SetStatus(this.grid_state, unknown_links[0].node, Status.Dead, reason("cell->link erasure", cell.node.id));
+                    return new SetStatus(this, unknown_links[0].node, Status.Dead, reason("cell->link erasure", cell.node.id));
                 }
 
                 if(live_links.length + unknown_links.length == 2) {
-                    return new SetStatus(this.grid_state, unknown_links[0].node, Status.Live, reason("cell->link completion", cell.node.id));
+                    return new SetStatus(this, unknown_links[0].node, Status.Live, reason("cell->link completion", cell.node.id));
                 }
             }
         }
 
         if(status == Status.Unknown) {
             if(live_links.length > 0) {
-                return new SetStatus(this.grid_state, cell.node, Status.Live, reason("link->cell ignition", live_links[0].node.id));
+                return new SetStatus(this, cell.node, Status.Live, reason("link->cell ignition", live_links[0].node.id));
             }
 
             if(unknown_links.length < 2) {
-                return new SetStatus(this.grid_state, cell.node, Status.Dead, reason("link->cell extinguishment", cell.node.id));
+                return new SetStatus(this, cell.node, Status.Dead, reason("link->cell extinguishment", cell.node.id));
             }
         }
 
@@ -242,7 +290,7 @@ export class RuleReducer {
 
         if(status == Status.Unknown) {
             if(live_cells.length + unknown_cells.length < 2) {
-                return new SetStatus(this.grid_state, link.node, Status.Dead, reason("cell->link extinguish", link.node.cells[0].node.id));
+                return new SetStatus(this, link.node, Status.Dead, reason("cell->link extinguish", link.node.cells[0].node.id));
             }
 
             if(live_cells.length == 2) {
@@ -250,7 +298,7 @@ export class RuleReducer {
                 const cell_chain_1 = this.chains.get(live_cells[1].node.id)!;
 
                 if(cell_chain_0 == cell_chain_1) {
-                    return new SetStatus(this.grid_state, link.node, Status.Dead, reason("refusing to close loop", cell_chain_0));
+                    return new SetStatus(this, link.node, Status.Dead, reason("refusing to close loop", cell_chain_0));
                 }
             }
         }
@@ -281,11 +329,11 @@ export class RuleReducer {
 
         if(unknown_cells.length > 0) {
             if(live_cells.length == hint.value) {
-                return new SetStatus(this.grid_state, unknown_cells[0].node, Status.Dead, reason("hint->cell extinction", hint.node.id));
+                return new SetStatus(this, unknown_cells[0].node, Status.Dead, reason("hint->cell extinction", hint.node.id));
             }
 
             if(live_cells.length + unknown_cells.length == hint.value) {
-                return new SetStatus(this.grid_state, unknown_cells[0].node, Status.Live, reason("hint->cell creation", hint.node.id));
+                return new SetStatus(this, unknown_cells[0].node, Status.Live, reason("hint->cell creation", hint.node.id));
             }
 
             if(live_cells.length == hint.value - 1) {
@@ -293,7 +341,7 @@ export class RuleReducer {
                 for(const link of unknown_links) {
                     const [live_neighbors, _unknown_neighbors] = this.grid_state.split_cells(link.node.cells);
                     if(live_neighbors.length == 0) {
-                        return new SetStatus(this.grid_state, link.node, Status.Dead, reason("hint->link restriction", hint.node.id));
+                        return new SetStatus(this, link.node, Status.Dead, reason("hint->link restriction", hint.node.id));
                     }
                 }
             }
