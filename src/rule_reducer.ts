@@ -18,6 +18,13 @@ import {
     reason
 } from './grid_state.js';
 
+function shuffle_array<T>(array: Array<T>) {
+    for (let i = array.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [array[i], array[j]] = [array[j], array[i]];
+    }
+}
+
 export class RepealCandidacy implements Action {
     candidates: Set<Id>;
     id: Id;
@@ -165,15 +172,24 @@ export class RuleReducer {
                 return action;
             } else if(this.allow_experimentation) {
                 this.mode = Mode.Experimentation;
+                const candidates = new Array();
+
                 for(const id of this.grid_state.grid.cells.keys()) {
                     if(this.grid_state.statuses.get(id) == Status.Unknown) {
-                        this.candidates.add(id);
+                        candidates.push(id);
                     }
                 }
+
                 for(const id of this.grid_state.grid.links.keys()) {
                     if(this.grid_state.statuses.get(id) == Status.Unknown) {
-                        this.candidates.add(id);
+                        candidates.push(id);
                     }
+                }
+
+                shuffle_array(candidates);
+
+                for(const id of candidates) {
+                    this.candidates.add(id);
                 }
             }
         }
