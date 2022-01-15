@@ -44,10 +44,12 @@ export class RepealCandidacy implements Action {
 export class SetStatus implements Action {
     rule_reducer: RuleReducer;
     set_status: SetGridStatus;
+    target: Node;
 
-    constructor(rule_reducer: RuleReducer, node: Node, new_status: Status, reason: string) {
+    constructor(rule_reducer: RuleReducer, target: Node, new_status: Status, reason: string) {
         this.rule_reducer = rule_reducer;
-        this.set_status = new SetGridStatus(rule_reducer.grid_state, node, new_status, reason);
+        this.set_status = new SetGridStatus(rule_reducer.grid_state, target, new_status, reason);
+        this.target = target;
     }
 
     execute(): Array<Id> {
@@ -55,8 +57,9 @@ export class SetStatus implements Action {
 
         for(const id of modified_ids) {
             this.rule_reducer.candidates.add(id);
-            this.rule_reducer.guessables.add(id);
         }
+
+        this.rule_reducer.guessables.delete(this.target.id);
 
         return modified_ids;
     }
@@ -81,29 +84,18 @@ export class SetChain implements Action {
         output('node ' + this.target.id + ' joins ' + this.chain_id + '; ' + this.reason);
         this.chains.set(this.target.id, this.chain_id);
 
-        const modified_ids = new Array();
-        const neighbors: Array<[number, Node]> = [[0, this.target]];
+        const modified_ids = [this.target.id];
 
-        while(neighbors.length > 0) {
-            const [distance, neighbor] = neighbors.pop()!;
-            modified_ids.push(neighbor.id);
+        const [live_cells, unknown_cells] = this.rule_reducer.grid_state.split_cells(this.target.cells);
+        const [live_links, unknown_links] = this.rule_reducer.grid_state.split_links(this.target.links);
+        for(const neighbors of [live_cells, unknown_cells, live_links, unknown_links]) {
+            for(const neighbor of neighbors) {
+                modified_ids.push(neighbor.node.id);
+                this.rule_reducer.candidates.add(neighbor.node.id);
 
-            if(distance <= 0) {
-                const [live_cells, unknown_cells] = this.rule_reducer.grid_state.split_cells(this.target.cells);
-                const [live_links, unknown_links] = this.rule_reducer.grid_state.split_links(this.target.links);
-                for(const new_neighbors of [live_cells, unknown_cells, live_links, unknown_links]) {
-                    for(const neighbor of new_neighbors) {
-                        neighbors.push([distance + 1, neighbor.node]);
-                    }
+                if(this.rule_reducer.grid_state.statuses.get(neighbor.node.id) == Status.Unknown) {
+                    //this.rule_reducer.guessables.add(neighbor.node.id);
                 }
-            }
-
-            if(distance <= 1) {
-                this.rule_reducer.candidates.add(neighbor.id);
-            }
-
-            if(distance <= 2 && this.rule_reducer.grid_state.statuses.get(neighbor.id) == Status.Unknown) {
-                //this.rule_reducer.guessables.add(neighbor.id);
             }
         }
 
@@ -317,6 +309,9 @@ export class RuleReducer {
     }
 
     try_propagate_chain(chains: Map<Id, Id>, node1: Node, node2: Node, reason_string: string): Action | null {
+        return null;
+
+        /*
         const chain1 = chains.get(node1.id);
         const chain2 = chains.get(node2.id);
 
@@ -331,6 +326,7 @@ export class RuleReducer {
         }
 
         return null;
+        */
     }
 
     process_cell(cell: Cell): Action | null {

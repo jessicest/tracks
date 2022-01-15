@@ -208,7 +208,7 @@ export class View {
 
     get_state(id: Id): [Status, boolean, boolean] {
         const status = this.grid_state.statuses.get(id)!;
-        const is_candidate = this.rule_reducer.candidates.has(id);
+        const is_candidate = this.rule_reducer.candidates.has(id) || (this.rule_reducer.candidates.size == 0 && this.rule_reducer.guessables.has(id));
         const is_next_candidate = (id == this.next_candidate());
         return [status, is_candidate, is_next_candidate];
     }
@@ -284,7 +284,7 @@ export class View {
             text_color = '#aa0000'; // violation
         } else {
             if(is_next_candidate) {
-                inner_color = '#ffaa22'; // candidate
+                inner_color = '#ffaa22'; // next_candidate
             } else if(is_candidate) {
                 inner_color = '#00aa22'; // candidate
             }
