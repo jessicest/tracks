@@ -57,6 +57,7 @@ export class SetStatus implements Action {
 
         for(const id of modified_ids) {
             this.rule_reducer.candidates.add(id);
+            this.rule_reducer.guessables.add(id);
         }
 
         this.rule_reducer.guessables.delete(this.target.id);
@@ -309,9 +310,6 @@ export class RuleReducer {
     }
 
     try_propagate_chain(chains: Map<Id, Id>, node1: Node, node2: Node, reason_string: string): Action | null {
-        return null;
-
-        /*
         const chain1 = chains.get(node1.id);
         const chain2 = chains.get(node2.id);
 
@@ -326,7 +324,6 @@ export class RuleReducer {
         }
 
         return null;
-        */
     }
 
     process_cell(cell: Cell): Action | null {
