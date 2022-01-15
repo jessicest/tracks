@@ -120,7 +120,7 @@ export class View {
     set_grid_state(grid_state: GridState) {
         this.grid = grid_state.grid;
         this.grid_state = grid_state;
-        this.rule_reducer = new RuleReducer(grid_state, new Set(), new Map(), true);
+        this.rule_reducer = new RuleReducer(grid_state, new Set(), new Set(), new Map(), true);
         this.rule_reducer.initialize();
         this.resize_canvas();
         this.redraw();
@@ -178,10 +178,25 @@ export class View {
         }
     }
 
+    next_candidate(): Id | null {
+        let next_candidate = this.rule_reducer.next_candidate(this.rule_reducer.candidates);
+        if(next_candidate == null) {
+            next_candidate = this.rule_reducer.next_candidate(this.rule_reducer.guessables);
+        }
+        return next_candidate;
+
+        /* idk why this don't work
+        return
+            this.rule_reducer.next_candidate(this.rule_reducer.candidates) ||
+            this.rule_reducer.next_candidate(this.rule_reducer.guessables) ||
+            null;
+            */
+    }
+
     execute(action: Action, paint: boolean) {
         const modified_ids = action.execute().slice();
+        const next_candidate = this.next_candidate();
 
-        const next_candidate = this.rule_reducer.next_candidate();
         if(next_candidate != null) {
             modified_ids.push(next_candidate);
         }
@@ -194,7 +209,7 @@ export class View {
     get_state(id: Id): [Status, boolean, boolean] {
         const status = this.grid_state.statuses.get(id)!;
         const is_candidate = this.rule_reducer.candidates.has(id);
-        const is_next_candidate = (id == this.rule_reducer.next_candidate());
+        const is_next_candidate = (id == this.next_candidate());
         return [status, is_candidate, is_next_candidate];
     }
 

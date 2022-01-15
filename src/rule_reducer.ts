@@ -51,15 +51,11 @@ export class SetStatus implements Action {
     }
 
     execute(): Array<Id> {
-        if(this.rule_reducer.mode != Mode.Rules) {
-            this.rule_reducer.mode = Mode.Rules;
-            this.rule_reducer.candidates.clear();
-        }
-
         const modified_ids = this.set_status.execute();
 
         for(const id of modified_ids) {
             this.rule_reducer.candidates.add(id);
+            this.rule_reducer.guessables.add(id);
         }
 
         return modified_ids;
@@ -85,43 +81,55 @@ export class SetChain implements Action {
         output('node ' + this.target.id + ' joins ' + this.chain_id + '; ' + this.reason);
         this.chains.set(this.target.id, this.chain_id);
 
-        const [live_cells, unknown_cells] = this.rule_reducer.grid_state.split_cells(this.target.cells);
-        const [live_links, unknown_links] = this.rule_reducer.grid_state.split_links(this.target.links);
+        const modified_ids = new Array();
+        const neighbors: Array<[number, Node]> = [[0, this.target]];
 
-        const modified_ids = [this.target.id];
-        for(const neighbors of [live_cells, unknown_cells, live_links, unknown_links]) {
-            for(const neighbor of neighbors) {
-                modified_ids.push(neighbor.node.id);
-                this.rule_reducer.candidates.add(neighbor.node.id);
+        while(neighbors.length > 0) {
+            const [distance, neighbor] = neighbors.pop()!;
+            modified_ids.push(neighbor.id);
+
+            if(distance <= 0) {
+                const [live_cells, unknown_cells] = this.rule_reducer.grid_state.split_cells(this.target.cells);
+                const [live_links, unknown_links] = this.rule_reducer.grid_state.split_links(this.target.links);
+                for(const new_neighbors of [live_cells, unknown_cells, live_links, unknown_links]) {
+                    for(const neighbor of new_neighbors) {
+                        neighbors.push([distance + 1, neighbor.node]);
+                    }
+                }
+            }
+
+            if(distance <= 1) {
+                this.rule_reducer.candidates.add(neighbor.id);
+            }
+
+            if(distance <= 2 && this.rule_reducer.grid_state.statuses.get(neighbor.id) == Status.Unknown) {
+                //this.rule_reducer.guessables.add(neighbor.id);
             }
         }
+
         return modified_ids;
     }
-}
-
-const enum Mode {
-    Rules,
-    Experimentation,
 }
 
 export class RuleReducer {
     grid_state: GridState;
     candidates: Set<Id>;
+    guessables: Set<Id>;
     test_subjects: Set<Id>;
     chains: Map<Id, Id>;
-    mode: Mode;
     allow_experimentation: boolean;
 
     constructor(
         grid_state: GridState,
         candidates: Set<Id>,
+        guessables: Set<Id>,
         chains: Map<Id, Id>,
         allow_experimentation: boolean) {
         this.grid_state = grid_state;
         this.candidates = candidates;
+        this.guessables = guessables;
         this.test_subjects = new Set();
         this.chains = chains;
-        this.mode = Mode.Rules;
         this.allow_experimentation = allow_experimentation;
     }
 
@@ -129,6 +137,7 @@ export class RuleReducer {
         return new RuleReducer(
             this.grid_state.clone(),
             new Set(this.candidates),
+            new Set(this.guessables),
             new Map(this.chains),
             this.allow_experimentation
         );
@@ -137,10 +146,12 @@ export class RuleReducer {
     initialize() {
         for(const id of this.grid_state.grid.cells.keys()) {
             this.candidates.add(id);
+            this.guessables.add(id);
             this.chains.set(id, id);
         }
         for(const id of this.grid_state.grid.links.keys()) {
             this.chains.set(id, id);
+            this.guessables.add(id);
         }
         for(const id of this.grid_state.grid.hints.keys()) {
             this.candidates.add(id);
@@ -159,47 +170,22 @@ export class RuleReducer {
         }
     }
 
-    next_candidate() : Id | null {
-        return this.candidates.values().next().value;
+    next_candidate(candidates: Set<Id> = this.candidates) : Id | null {
+        return candidates.values().next().value;
         //const c = [...this.candidates.values()];
         //return c[Math.floor(Math.random() * c.length)];
     }
 
     process(): Action | null {
-        if(this.mode == Mode.Rules) {
-            const action = this.process_rules();
-            if(action != null) {
-                return action;
-            } else if(this.allow_experimentation) {
-                this.mode = Mode.Experimentation;
-                const candidates = new Array();
-
-                for(const id of this.grid_state.grid.cells.keys()) {
-                    if(this.grid_state.statuses.get(id) == Status.Unknown) {
-                        candidates.push(id);
-                    }
-                }
-
-                for(const id of this.grid_state.grid.links.keys()) {
-                    if(this.grid_state.statuses.get(id) == Status.Unknown) {
-                        candidates.push(id);
-                    }
-                }
-
-                shuffle_array(candidates);
-
-                for(const id of candidates) {
-                    this.candidates.add(id);
-                }
-            }
+        const action = this.process_rules();
+        if(action != null) {
+            return action;
         }
 
-        if(this.mode == Mode.Experimentation) {
+        if(this.allow_experimentation) {
             const action = this.process_experimentation();
             if(action != null) {
                 return action;
-            } else {
-                return null;
             }
         }
 
@@ -207,7 +193,7 @@ export class RuleReducer {
     }
 
     process_rules(): Action | null {
-        const id = this.next_candidate();
+        const id = this.next_candidate(this.candidates);
 
         if(id != null) {
             let result = null;
@@ -229,11 +215,14 @@ export class RuleReducer {
     }
 
     process_experimentation(): Action | null {
-        const id = this.next_candidate();
+        const id = this.next_candidate(this.guessables);
         if(id == null) {
             return null;
         }
-        const status = this.grid_state.statuses.get(id);
+
+        if(this.grid_state.statuses.get(id) != Status.Unknown) {
+            return new RepealCandidacy(this.guessables, id);
+        }
 
         const results = new Array();
         for(const status of [Status.Live, Status.Dead]) {
@@ -262,7 +251,7 @@ export class RuleReducer {
             return new SetStatus(this, this.grid_state.grid.node(id), results[1][1], reason("because my guess shone true", id));
         }
 
-        return new RepealCandidacy(this.candidates, id);
+        return new RepealCandidacy(this.guessables, id);
     }
 
     process_zones(): Action | null {
