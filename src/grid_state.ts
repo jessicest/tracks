@@ -158,6 +158,95 @@ export class GridState {
 
         return result;
     }
+
+    encode(): string {
+        return `${this.cx}x${this.cy}:${encode_links(this)}${encode_hints(this)}`;
+    }
+}
+
+function encode_links(grid_state: GridState) : string {
+    const zx = cx + 1;
+    const zy = cy + 1;
+
+    let skip = 0;
+
+    for(const y of range(1, zy)) {
+        for(const x of range(1, zx)) {
+            let value = 0;
+
+            const north_id = make_link_id({ x, y: y - 1 }, Direction.South);
+            const north = grid_state.statuses.get(north_id) == State.Live;
+
+            if(north) {
+                value += 2;
+            }
+
+            const east_id = make_link_id({ x, y }, Direction.East);
+            const east = grid_state.statuses.get(east_id) == State.Live;
+
+            if(east) {
+                value += 1;
+            }
+
+            const south_id = make_link_id({ x, y }, Direction.South);
+            const south = grid_state.statuses.get(south_id) == State.Live;
+
+            if(south) {
+                value += 8;
+            }
+
+            const west_id = make_link_id({ x: x - 1, y }, Direction.East);
+            const west = grid_state.statuses.get(west_id) == State.Live;
+
+            if(west) {
+                value += 4;
+            }
+
+            if(value > 0) {
+                if(skip > 0) {
+                    code += String.fromCharCode(skip + 96);
+                }
+                skip = 0;
+
+                if(value < 10) {
+                    code += String.fromCharCode(48 + value);
+                } else if(value < 16) {
+                    code += String.fromCharCode(55 + value);
+                } else {
+                    throw new Error("huh? how tho");
+                }
+            } else {
+                ++skip;
+            }
+        }
+    }
+    if(skip > 0) {
+        code += String.fromCharCode(skip + 96);
+    }
+
+    return code;
+}
+
+function encode_hints(grid_state: GridState) : string {
+    let code = new string();
+
+    for(const x of range(1, grid_state.cx + 2)) {
+        if(false) {
+            code += "S";
+        }
+        code += ',';
+        code += String.fromCharCode(grid_state.grid.hints.get(make_hint_id(x, Direction.South))!.value + 48);
+    }
+
+    for(const y of range(1, grid_state.cy + 2)) {
+        if(false) {
+            code += "S";
+        }
+        code += ',';
+        code += String.fromCharCode(grid_state.grid.hints.get(make_hint_id(y, Direction.East))!.value + 48);
+    }
+
+    return code;
 }
 
 function parse_links(cx: number, input: string) : Array<LinkContent> {

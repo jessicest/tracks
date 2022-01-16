@@ -1,7 +1,9 @@
 {
     "compilerOptions": {
+        "experimentalDecorators": true,
         "forceConsistentCasingInFileNames": true,
         "lib": [ "ES2019", "DOM" ],
+        "module": "CommonJS",
         "noFallthroughCasesInSwitch": true,
         "outDir": "lib",
         "removeComments": true,
