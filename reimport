@@ -1,0 +1,8 @@
+#!/bin/sh
+cd lib
+#find . -type f -name "*.js" -exec sed -i "s/from '(.*)'/from '(.*).js'/g" {} +
+#sed -i "s/from '(.*)'/from '(.*).js'/" view.js
+#sed -i 's/from \'\(.*\)\'/from \'\(.*\).js\'/' view.js
+#sed -i "s/from '\(.*\)'/from '\1.js'/g" view.js
+find . -type f -name "*.js" -exec sed -i "s/from '\(.*\)'/from '\1.js'/g" {} +
+cd ..

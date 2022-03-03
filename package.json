@@ -20,9 +20,10 @@
     "typescript": "^4.0.3"
   },
   "scripts": {
-    "build": "tsc --build",
-    "clean": "tsc --build --clean",
-    "rebuild": "tsc --build --clean && tsc --build",
+    "build": "tsc --build && bash reimport",
+    "clean": "tsc --build --clean && bash reimport",
+    "rebuild": "tsc --build --clean && tsc --build && bash reimport",
+    "reimport": "bash reimport",
     "run": "node lib/index.js",
     "test": "jest --no-cache",
     "test-esm": "node --experimental-vm-modules --no-warnings node_modules/jest/bin/jest.js -c=jest-esm.config.js --no-cache",

@@ -5,7 +5,7 @@ import {
     Id,
     Link,
     Node
-} from './grid.js';
+} from './grid';
 
 import {
     Action,
@@ -16,7 +16,7 @@ import {
     Zone,
     output,
     reason
-} from './grid_state.js';
+} from './grid_state';
 
 function shuffle_array<T>(array: Array<T>) {
     for (let i = array.length - 1; i > 0; i--) {

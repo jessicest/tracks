@@ -12,7 +12,7 @@ import {
     make_grid,
     make_hints,
     make_link_id
-} from './grid.js';
+} from './grid';
 
 import {
     Action,
@@ -20,12 +20,12 @@ import {
     Status,
     make_grid_state,
     parse_code
-} from './grid_state.js';
+} from './grid_state';
 
 import {
     RuleReducer,
     SetStatus
-} from './rule_reducer.js';
+} from './rule_reducer';
 
 declare global {
   interface Window {

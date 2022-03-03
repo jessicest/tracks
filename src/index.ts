@@ -7,16 +7,16 @@ import {
     make_hints,
     make_link_id,
     range
-} from './grid.js';
+} from './grid';
 
 import {
     GridState,
     make_grid_state,
-} from './grid_state.js';
+} from './grid_state';
 
 import {
     RuleReducer
-} from './rule_reducer.js';
+} from './rule_reducer';
 
 /*
 elaborate:

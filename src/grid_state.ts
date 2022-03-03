@@ -20,7 +20,7 @@ import {
     make_hint_id,
     make_link_id,
     range
-} from './grid.js';
+} from './grid';
 
 export const enum Status {
     Live,
