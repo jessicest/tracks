@@ -1,6 +1,7 @@
 
 import {
     Cell,
+    Direction,
     Orientation,
     Grid,
     Hint,
@@ -94,10 +95,10 @@ export class View {
         });
 
         this.set_grid_state(make_grid_state(4, 4, [
-                { pos: { x: 1, y: 1 }, orientation: Orientation.South },
-                { pos: { x: 0, y: 2 }, orientation: Orientation.East },
-                { pos: { x: 1, y: 4 }, orientation: Orientation.East },
-                { pos: { x: 2, y: 4 }, orientation: Orientation.South }
+                { pos: { x: 1, y: 1 }, direction: Direction.South },
+                { pos: { x: 0, y: 2 }, direction: Direction.East },
+                { pos: { x: 1, y: 4 }, direction: Direction.East },
+                { pos: { x: 2, y: 4 }, direction: Direction.South }
             ],
             make_hints([4,3,3,2], [4,3,3,2])
         ));
@@ -149,9 +150,9 @@ export class View {
             id = make_cell_id({ x, y });
             is_link = false;
         } else if(x_in_link && !y_in_link) {
-            id = make_link_id({ x, y }, Orientation.East);
+            id = make_link_id({ x, y }, Direction.East);
         } else if(!x_in_link && y_in_link) {
-            id = make_link_id({ x, y }, Orientation.South);
+            id = make_link_id({ x, y }, Direction.South);
         }
 
         if(id != null) {

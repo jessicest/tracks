@@ -1,6 +1,6 @@
 
 import {
-    Orientation,
+    Direction,
     Grid,
     Index,
     LinkContent,
@@ -55,15 +55,15 @@ function to_string(grid_state: GridState): string {
 
 function main() {
     function link(x: Index, y: Index, south: boolean): LinkContent {
-        return { pos: { x, y }, orientation: south ? Orientation.South : Orientation.East };
+        return { pos: { x, y }, direction: south ? Direction.South : Direction.East };
     }
 
     /*
     const grid = make_grid(4, 4, [
-            { pos: { x: 1, y: 1 }, orientation: Orientation.South },
-            { pos: { x: 0, y: 2 }, orientation: Orientation.East },
-            { pos: { x: 1, y: 4 }, orientation: Orientation.East },
-            { pos: { x: 2, y: 4 }, orientation: Orientation.South }
+            { pos: { x: 1, y: 1 }, direction: Direction.South },
+            { pos: { x: 0, y: 2 }, direction: Direction.East },
+            { pos: { x: 1, y: 4 }, direction: Direction.East },
+            { pos: { x: 2, y: 4 }, direction: Direction.South }
         ],
         make_hints([4,3,3,2], [4,3,3,2])
     );

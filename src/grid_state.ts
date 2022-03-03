@@ -6,6 +6,7 @@
 
 import {
     Cell,
+    Direction,
     Orientation,
     Grid,
     Hint,
@@ -177,31 +178,16 @@ function encode_links(grid_state: GridState): string {
         for(const x of range(1, zx)) {
             let value = 0;
 
-            const north_id = make_link_id({ x, y: y - 1 }, Orientation.South);
-            const north = grid_state.statuses.get(north_id) == Status.Live;
-
-            if(north) {
+            if(grid_state.statuses.get(make_link_id({ x, y }, Direction.North)) == Status.Live) {
                 value += 2;
             }
-
-            const east_id = make_link_id({ x, y }, Orientation.East);
-            const east = grid_state.statuses.get(east_id) == Status.Live;
-
-            if(east) {
+            if(grid_state.statuses.get(make_link_id({ x, y }, Direction.East)) == Status.Live) {
                 value += 1;
             }
-
-            const south_id = make_link_id({ x, y }, Orientation.South);
-            const south = grid_state.statuses.get(south_id) == Status.Live;
-
-            if(south) {
+            if(grid_state.statuses.get(make_link_id({ x, y }, Direction.South)) == Status.Live) {
                 value += 8;
             }
-
-            const west_id = make_link_id({ x: x - 1, y }, Orientation.East);
-            const west = grid_state.statuses.get(west_id) == Status.Live;
-
-            if(west) {
+            if(grid_state.statuses.get(make_link_id({ x, y }, Direction.West)) == Status.Live) {
                 value += 4;
             }
 

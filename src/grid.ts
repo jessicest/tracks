@@ -10,6 +10,13 @@ export const enum Orientation {
     South,
 }
 
+export const enum Direction {
+    North,
+    East,
+    South,
+    West,
+}
+
 export type Index = number;
 export type Id = string;
 
@@ -17,6 +24,15 @@ export type Pos = {
     x: Index,
     y: Index
 };
+
+export function direction_to_orientation(pos: Pos, direction: Direction): [Pos, Orientation] {
+    switch(direction) {
+        case Direction.North: return [{ x: pos.x, y: pos.y - 1 }, Orientation.South];
+        case Direction.East: return [pos, Orientation.East];
+        case Direction.South: return [pos, Orientation.South];
+        case Direction.West: return [{ x: pos.x - 1, y: pos.y }, Orientation.East];
+    }
+}
 
 function south(pos: Pos) : Pos {
     return { x: pos.x, y: pos.y + 1 };
@@ -42,8 +58,13 @@ export function make_cell_id(pos: Pos): CellId {
 
 export type LinkId = Id;
 
-export function make_link_id(pos: Pos, orientation: Orientation): LinkId {
+export function make_link_id_from_orientation(pos: Pos, orientation: Orientation): LinkId {
     return 'l' + JSON.stringify({ pos, orientation });
+}
+
+export function make_link_id(start_pos: Pos, direction: Direction): LinkId {
+    const [pos, orientation] = direction_to_orientation(start_pos, direction);
+    return make_link_id_from_orientation(pos, orientation);
 }
 
 export type HintId = Id;
@@ -54,7 +75,7 @@ export function make_hint_id(index: Index, orientation: Orientation): HintId {
 
 export type LinkContent = {
     pos: Pos,
-    orientation: Orientation,
+    direction: Direction,
 };
 
 export type HintContent = {
@@ -109,7 +130,7 @@ export class Link {
     orientation: Orientation;
 
     constructor(pos: Pos, orientation: Orientation) {
-        this.node = new Node(make_link_id(pos, orientation));
+        this.node = new Node(make_link_id_from_orientation(pos, orientation));
         this.pos = pos;
         this.orientation = orientation;
     }
@@ -138,10 +159,10 @@ export class GridBuilder {
             for(const x of range(1, zx)) {
                 const pos = { x, y };
                 if(x < cx) {
-                    this.add_link(pos, Orientation.East);
+                    this.add_link(pos, Direction.East);
                 }
                 if(y < cy) {
-                    this.add_link(pos, Orientation.South);
+                    this.add_link(pos, Direction.South);
                 }
             }
         }
@@ -157,10 +178,10 @@ export class GridBuilder {
         this.grid.xmax = Math.max(this.grid.xmax, pos.x);
         this.grid.ymax = Math.max(this.grid.ymax, pos.y);
 
-        this.try_connect_cell_with_link(cell.node.id, make_link_id(pos, Orientation.East));
-        this.try_connect_cell_with_link(cell.node.id, make_link_id(west(pos), Orientation.East));
-        this.try_connect_cell_with_link(cell.node.id, make_link_id(pos, Orientation.South));
-        this.try_connect_cell_with_link(cell.node.id, make_link_id(north(pos), Orientation.South));
+        this.try_connect_cell_with_link(cell.node.id, make_link_id(pos, Direction.East));
+        this.try_connect_cell_with_link(cell.node.id, make_link_id(pos, Direction.West));
+        this.try_connect_cell_with_link(cell.node.id, make_link_id(pos, Direction.South));
+        this.try_connect_cell_with_link(cell.node.id, make_link_id(pos, Direction.North));
 
         this.try_connect_hint_with_cell(make_hint_id(pos.y, Orientation.East), cell.node.id);
         this.try_connect_hint_with_cell(make_hint_id(pos.x, Orientation.South), cell.node.id);
@@ -168,13 +189,15 @@ export class GridBuilder {
         return cell.node.id;
     }
 
-    add_permalink(pos: Pos, orientation: Orientation): LinkId {
-        const id = this.add_link(pos, orientation);
+    add_permalink(pos: Pos, direction: Direction): LinkId {
+        const id = this.add_link(pos, direction);
         this.grid.permalinks.add(id);
         return id;
     }
 
-    add_link(pos: Pos, orientation: Orientation): LinkId {
+    add_link(start_pos: Pos, direction: Direction): LinkId {
+        const [pos, orientation] = direction_to_orientation(start_pos, direction);
+
         const link = new Link(pos, orientation);
         if(this.grid.links.has(link.node.id)) {
             return link.node.id;
@@ -213,7 +236,7 @@ export class GridBuilder {
                 for(const y of range(this.grid.ymax + 1)) {
                     const pos = { x, y };
                     this.try_connect_hint_with_cell(hint.node.id, make_cell_id(pos));
-                    this.try_connect_hint_with_link(hint.node.id, make_link_id(pos, Orientation.South));
+                    this.try_connect_hint_with_link(hint.node.id, make_link_id(pos, Direction.South));
                 }
                 break;
             case Orientation.East:
@@ -221,7 +244,7 @@ export class GridBuilder {
                 for(const x of range(this.grid.xmax + 1)) {
                     const pos = { x, y };
                     this.try_connect_hint_with_cell(hint.node.id, make_cell_id(pos));
-                    this.try_connect_hint_with_link(hint.node.id, make_link_id(pos, Orientation.East));
+                    this.try_connect_hint_with_link(hint.node.id, make_link_id(pos, Direction.East));
                 }
                 break;
         }
@@ -295,14 +318,14 @@ export class Grid {
     }
 }
 
-export function make_hints(hints_north_south: Array<number>, hints_east_west: Array<number>): Array<HintContent> {
+export function make_hints(hints_south: Array<number>, hints_east: Array<number>): Array<HintContent> {
     const hint_contents = new Array();
 
-    hints_north_south.forEach((value, index) => {
+    hints_south.forEach((value, index) => {
         hint_contents.push({ index: index + 1, orientation: Orientation.South, value });
     });
 
-    hints_east_west.forEach((value, index) => {
+    hints_east.forEach((value, index) => {
         hint_contents.push({ index: index + 1, orientation: Orientation.East, value });
     });
 
@@ -314,7 +337,7 @@ export function make_grid(cx: Index, cy: Index, live_links: Array<LinkContent>, 
 
     // add live links (this will add the offramps)
     for(const link_content of live_links) {
-        builder.add_permalink(link_content.pos, link_content.orientation);
+        builder.add_permalink(link_content.pos, link_content.direction);
     }
 
     // add hints
