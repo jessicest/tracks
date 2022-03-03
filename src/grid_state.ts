@@ -17,7 +17,9 @@ import {
     Node,
     NodeId,
     make_grid,
-    make_link_id
+    make_hint_id,
+    make_link_id,
+    range
 } from './grid.js';
 
 export const enum Status {

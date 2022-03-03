@@ -5,7 +5,8 @@ import {
     Index,
     LinkContent,
     make_hints,
-    make_link_id
+    make_link_id,
+    range
 } from './grid.js';
 
 import {
