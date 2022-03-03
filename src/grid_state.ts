@@ -6,7 +6,7 @@
 
 import {
     Cell,
-    Direction,
+    Orientation,
     Grid,
     Hint,
     HintContent,
@@ -177,28 +177,28 @@ function encode_links(grid_state: GridState): string {
         for(const x of range(1, zx)) {
             let value = 0;
 
-            const north_id = make_link_id({ x, y: y - 1 }, Direction.South);
+            const north_id = make_link_id({ x, y: y - 1 }, Orientation.South);
             const north = grid_state.statuses.get(north_id) == Status.Live;
 
             if(north) {
                 value += 2;
             }
 
-            const east_id = make_link_id({ x, y }, Direction.East);
+            const east_id = make_link_id({ x, y }, Orientation.East);
             const east = grid_state.statuses.get(east_id) == Status.Live;
 
             if(east) {
                 value += 1;
             }
 
-            const south_id = make_link_id({ x, y }, Direction.South);
+            const south_id = make_link_id({ x, y }, Orientation.South);
             const south = grid_state.statuses.get(south_id) == Status.Live;
 
             if(south) {
                 value += 8;
             }
 
-            const west_id = make_link_id({ x: x - 1, y }, Direction.East);
+            const west_id = make_link_id({ x: x - 1, y }, Orientation.East);
             const west = grid_state.statuses.get(west_id) == Status.Live;
 
             if(west) {
@@ -238,7 +238,7 @@ function encode_hints(grid_state: GridState) : string {
             code += "S";
         }
         code += ',';
-        code += String.fromCharCode(grid_state.grid.hints.get(make_hint_id(x, Direction.South))!.value + 48);
+        code += String.fromCharCode(grid_state.grid.hints.get(make_hint_id(x, Orientation.South))!.value + 48);
     }
 
     for(const y of range(1, grid_state.grid.ymax + 2)) {
@@ -246,7 +246,7 @@ function encode_hints(grid_state: GridState) : string {
             code += "S";
         }
         code += ',';
-        code += String.fromCharCode(grid_state.grid.hints.get(make_hint_id(y, Direction.East))!.value + 48);
+        code += String.fromCharCode(grid_state.grid.hints.get(make_hint_id(y, Orientation.East))!.value + 48);
     }
 
     return code;
@@ -292,22 +292,22 @@ function parse_links(cx: number, input: string) : Array<LinkContent> {
 
             if(n & 1) {
                 // East
-                link_contents.push({ pos: { x: x + 1, y: y + 1 }, direction: Direction.East });
+                link_contents.push({ pos: { x: x + 1, y: y + 1 }, orientation: Orientation.East });
             }
 
             if(n & 2) {
                 // North
-                link_contents.push({ pos: { x: x + 1, y }, direction: Direction.South });
+                link_contents.push({ pos: { x: x + 1, y }, orientation: Orientation.South });
             }
 
             if(n & 4) {
                 // West
-                link_contents.push({ pos: { x, y: y + 1 }, direction: Direction.East });
+                link_contents.push({ pos: { x, y: y + 1 }, orientation: Orientation.East });
             }
 
             if(n & 8) {
                 // South
-                link_contents.push({ pos: { x: x + 1, y: y + 1 }, direction: Direction.South });
+                link_contents.push({ pos: { x: x + 1, y: y + 1 }, orientation: Orientation.South });
             }
 
             ++i;
@@ -327,9 +327,9 @@ function parse_hints(cx: number, input: string) : Array<HintContent> {
     while(hint = hints_matcher.exec(input)) {
         const value = parseInt(hint[2]);
         if(i < cx) {
-            hint_contents.push({ index: i + 1, direction: Direction.South, value });
+            hint_contents.push({ index: i + 1, orientation: Orientation.South, value });
         } else {
-            hint_contents.push({ index: i + 1 - cx, direction: Direction.East, value });
+            hint_contents.push({ index: i + 1 - cx, orientation: Orientation.East, value });
         }
         ++i;
     }

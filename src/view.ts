@@ -1,7 +1,7 @@
 
 import {
     Cell,
-    Direction,
+    Orientation,
     Grid,
     Hint,
     Id,
@@ -9,7 +9,6 @@ import {
     Link,
     Pos,
     make_cell_id,
-    make_grid,
     make_hints,
     make_link_id
 } from './grid';
@@ -95,10 +94,10 @@ export class View {
         });
 
         this.set_grid_state(make_grid_state(4, 4, [
-                { pos: { x: 1, y: 1 }, direction: Direction.South },
-                { pos: { x: 0, y: 2 }, direction: Direction.East },
-                { pos: { x: 1, y: 4 }, direction: Direction.East },
-                { pos: { x: 2, y: 4 }, direction: Direction.South }
+                { pos: { x: 1, y: 1 }, orientation: Orientation.South },
+                { pos: { x: 0, y: 2 }, orientation: Orientation.East },
+                { pos: { x: 1, y: 4 }, orientation: Orientation.East },
+                { pos: { x: 2, y: 4 }, orientation: Orientation.South }
             ],
             make_hints([4,3,3,2], [4,3,3,2])
         ));
@@ -150,9 +149,9 @@ export class View {
             id = make_cell_id({ x, y });
             is_link = false;
         } else if(x_in_link && !y_in_link) {
-            id = make_link_id({ x, y }, Direction.East);
+            id = make_link_id({ x, y }, Orientation.East);
         } else if(!x_in_link && y_in_link) {
-            id = make_link_id({ x, y }, Direction.South);
+            id = make_link_id({ x, y }, Orientation.South);
         }
 
         if(id != null) {
@@ -256,10 +255,10 @@ export class View {
         const cell_diameter = this.cell_radius * 2;
         const link_diameter = this.link_radius * 2;
 
-        const px = (hint.direction == Direction.East)
+        const px = (hint.orientation == Orientation.East)
             ? 0
             : hint.index * (cell_diameter + link_diameter);
-        const py = (hint.direction == Direction.South)
+        const py = (hint.orientation == Orientation.South)
             ? 0
             : hint.index * (cell_diameter + link_diameter);
 
@@ -368,10 +367,10 @@ export class View {
 
         const x = link.pos.x;
         const y = link.pos.y;
-        const direction = link.direction;
+        const orientation = link.orientation;
 
         let px, py, cx, cy, gap;
-        if(direction == Direction.South) {
+        if(orientation == Orientation.South) {
             px = x * (cell_diameter + link_diameter);
             py = y * (cell_diameter + link_diameter) + cell_diameter;
             cx = this.cell_radius;
@@ -411,7 +410,7 @@ export class View {
             /*
             if(this.rule_reducer.chains.get(cell.node.id)! == this.rule_reducer.chains.get(link.node.id)!) {
                 const distance = (cell.pos.y + cell.pos.x) - (link.pos.y + link.pos.x);
-                const cardinal = distance + (link.direction == Direction.South ? 2 : 0);
+                const cardinal = distance + (link.orientation == Orientation.South ? 2 : 0);
                 this.draw_chains(context, this.rule_reducer.chains, cardinal, px, py, cx, cy, gap, '#880000');
             }
             */

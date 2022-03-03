@@ -5,7 +5,7 @@ export function* range(start: number, end?: number, step: number = 1) {
   for( let n = start; n < end; n += step ) yield n;
 }
 
-export const enum Direction {
+export const enum Orientation {
     East,
     South,
 }
@@ -42,24 +42,24 @@ export function make_cell_id(pos: Pos): CellId {
 
 export type LinkId = Id;
 
-export function make_link_id(pos: Pos, direction: Direction): LinkId {
-    return 'l' + JSON.stringify({ pos, direction });
+export function make_link_id(pos: Pos, orientation: Orientation): LinkId {
+    return 'l' + JSON.stringify({ pos, orientation });
 }
 
 export type HintId = Id;
 
-export function make_hint_id(index: Index, direction: Direction): HintId {
-    return 'h' + JSON.stringify({ index, direction });
+export function make_hint_id(index: Index, orientation: Orientation): HintId {
+    return 'h' + JSON.stringify({ index, orientation });
 }
 
 export type LinkContent = {
     pos: Pos,
-    direction: Direction,
+    orientation: Orientation,
 };
 
 export type HintContent = {
     index: Index,
-    direction: Direction,
+    orientation: Orientation,
     value: number
 };
 
@@ -82,13 +82,13 @@ export class Node {
 export class Hint {
     node: Node;
     index: Index;
-    direction: Direction;
+    orientation: Orientation;
     value: number;
 
-    constructor(index: Index, direction: Direction, value: number) {
-        this.node = new Node(make_hint_id(index, direction));
+    constructor(index: Index, orientation: Orientation, value: number) {
+        this.node = new Node(make_hint_id(index, orientation));
         this.index = index;
-        this.direction = direction;
+        this.orientation = orientation;
         this.value = value;
     }
 }
@@ -106,12 +106,12 @@ export class Cell {
 export class Link {
     node: Node;
     pos: Pos;
-    direction: Direction;
+    orientation: Orientation;
 
-    constructor(pos: Pos, direction: Direction) {
-        this.node = new Node(make_link_id(pos, direction));
+    constructor(pos: Pos, orientation: Orientation) {
+        this.node = new Node(make_link_id(pos, orientation));
         this.pos = pos;
-        this.direction = direction;
+        this.orientation = orientation;
     }
 }
 
@@ -120,6 +120,31 @@ export class GridBuilder {
 
     constructor(xmax: Index, ymax: Index) {
         this.grid = new Grid(xmax, ymax, new Map(), new Map(), new Map(), new Set());
+
+        const cx = xmax;
+        const cy = ymax;
+        const zx = cx + 1;
+        const zy = cy + 1;
+
+        // add cells
+        for(const y of range(1, zy)) {
+            for(const x of range(1, zx)) {
+                this.add_cell({ x, y });
+            }
+        }
+
+        // add links
+        for(const y of range(1, zy)) {
+            for(const x of range(1, zx)) {
+                const pos = { x, y };
+                if(x < cx) {
+                    this.add_link(pos, Orientation.East);
+                }
+                if(y < cy) {
+                    this.add_link(pos, Orientation.South);
+                }
+            }
+        }
     }
 
     add_cell(pos: Pos): CellId {
@@ -132,25 +157,25 @@ export class GridBuilder {
         this.grid.xmax = Math.max(this.grid.xmax, pos.x);
         this.grid.ymax = Math.max(this.grid.ymax, pos.y);
 
-        this.try_connect_cell_with_link(cell.node.id, make_link_id(pos, Direction.East));
-        this.try_connect_cell_with_link(cell.node.id, make_link_id(west(pos), Direction.East));
-        this.try_connect_cell_with_link(cell.node.id, make_link_id(pos, Direction.South));
-        this.try_connect_cell_with_link(cell.node.id, make_link_id(north(pos), Direction.South));
+        this.try_connect_cell_with_link(cell.node.id, make_link_id(pos, Orientation.East));
+        this.try_connect_cell_with_link(cell.node.id, make_link_id(west(pos), Orientation.East));
+        this.try_connect_cell_with_link(cell.node.id, make_link_id(pos, Orientation.South));
+        this.try_connect_cell_with_link(cell.node.id, make_link_id(north(pos), Orientation.South));
 
-        this.try_connect_hint_with_cell(make_hint_id(pos.y, Direction.East), cell.node.id);
-        this.try_connect_hint_with_cell(make_hint_id(pos.x, Direction.South), cell.node.id);
+        this.try_connect_hint_with_cell(make_hint_id(pos.y, Orientation.East), cell.node.id);
+        this.try_connect_hint_with_cell(make_hint_id(pos.x, Orientation.South), cell.node.id);
 
         return cell.node.id;
     }
 
-    add_permalink(pos: Pos, direction: Direction): LinkId {
-        const id = this.add_link(pos, direction);
+    add_permalink(pos: Pos, orientation: Orientation): LinkId {
+        const id = this.add_link(pos, orientation);
         this.grid.permalinks.add(id);
         return id;
     }
 
-    add_link(pos: Pos, direction: Direction): LinkId {
-        const link = new Link(pos, direction);
+    add_link(pos: Pos, orientation: Orientation): LinkId {
+        const link = new Link(pos, orientation);
         if(this.grid.links.has(link.node.id)) {
             return link.node.id;
         }
@@ -160,43 +185,43 @@ export class GridBuilder {
         this.grid.ymax = Math.max(this.grid.ymax, pos.y);
 
         this.try_connect_cell_with_link(make_cell_id(pos), link.node.id);
-        switch(direction) {
-            case Direction.East:
+        switch(orientation) {
+            case Orientation.East:
                 this.try_connect_cell_with_link(make_cell_id(east(pos)), link.node.id);
-                this.try_connect_hint_with_link(make_hint_id(pos.y, Direction.East), link.node.id);
+                this.try_connect_hint_with_link(make_hint_id(pos.y, Orientation.East), link.node.id);
                 break;
-            case Direction.South:
+            case Orientation.South:
                 this.try_connect_cell_with_link(make_cell_id(south(pos)), link.node.id);
-                this.try_connect_hint_with_link(make_hint_id(pos.x, Direction.South), link.node.id);
+                this.try_connect_hint_with_link(make_hint_id(pos.x, Orientation.South), link.node.id);
                 break;
         }
 
         return link.node.id;
     }
 
-    add_hint(index: Index, direction: Direction, value: number): HintId {
-        const hint = new Hint(index, direction, value);
+    add_hint(index: Index, orientation: Orientation, value: number): HintId {
+        const hint = new Hint(index, orientation, value);
         if(this.grid.hints.has(hint.node.id)) {
             return hint.node.id;
         }
 
         this.grid.hints.set(hint.node.id, hint);
 
-        switch(direction) {
-            case Direction.South:
+        switch(orientation) {
+            case Orientation.South:
                 const x = index;
                 for(const y of range(this.grid.ymax + 1)) {
                     const pos = { x, y };
                     this.try_connect_hint_with_cell(hint.node.id, make_cell_id(pos));
-                    this.try_connect_hint_with_link(hint.node.id, make_link_id(pos, Direction.South));
+                    this.try_connect_hint_with_link(hint.node.id, make_link_id(pos, Orientation.South));
                 }
                 break;
-            case Direction.East:
+            case Orientation.East:
                 const y = index;
                 for(const x of range(this.grid.xmax + 1)) {
                     const pos = { x, y };
                     this.try_connect_hint_with_cell(hint.node.id, make_cell_id(pos));
-                    this.try_connect_hint_with_link(hint.node.id, make_link_id(pos, Direction.East));
+                    this.try_connect_hint_with_link(hint.node.id, make_link_id(pos, Orientation.East));
                 }
                 break;
         }
@@ -274,50 +299,27 @@ export function make_hints(hints_north_south: Array<number>, hints_east_west: Ar
     const hint_contents = new Array();
 
     hints_north_south.forEach((value, index) => {
-        hint_contents.push({ index: index + 1, direction: Direction.South, value });
+        hint_contents.push({ index: index + 1, orientation: Orientation.South, value });
     });
 
     hints_east_west.forEach((value, index) => {
-        hint_contents.push({ index: index + 1, direction: Direction.East, value });
+        hint_contents.push({ index: index + 1, orientation: Orientation.East, value });
     });
 
     return hint_contents;
 }
 
 export function make_grid(cx: Index, cy: Index, live_links: Array<LinkContent>, hint_contents: Array<HintContent>): Grid {
-    const zx = cx + 1;
-    const zy = cy + 1;
-
     const builder = new GridBuilder(cx, cy);
-
-    // add cells
-    for(const y of range(1, zy)) {
-        for(const x of range(1, zx)) {
-            builder.add_cell({ x, y });
-        }
-    }
-
-    // add links
-    for(const y of range(1, zy)) {
-        for(const x of range(1, zx)) {
-            const pos = { x, y };
-            if(x < cx) {
-                builder.add_link(pos, Direction.East);
-            }
-            if(y < cy) {
-                builder.add_link(pos, Direction.South);
-            }
-        }
-    }
 
     // add live links (this will add the offramps)
     for(const link_content of live_links) {
-        builder.add_permalink(link_content.pos, link_content.direction);
+        builder.add_permalink(link_content.pos, link_content.orientation);
     }
 
     // add hints
     for(const hint of hint_contents) {
-        builder.add_hint(hint.index, hint.direction, hint.value);
+        builder.add_hint(hint.index, hint.orientation, hint.value);
     }
 
     return builder.build();
