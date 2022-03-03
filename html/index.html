@@ -2,15 +2,15 @@
 <html>
     <head>
         <meta charset="UTF-8" />
-        <script src='../lib/view.js' type='module'></script>
+        <script src='../lib/solver_view.js' type='module'></script>
     </head>
     <body>
         <p>
             <input id='code' />
-            <button onclick='window.view.parse()'>parse</button>
-            <button onclick='window.view.solve_step(true)'>step</button>
+            <button onclick='window.view.parse.call(window.view)'>parse</button>
+            <button onclick='window.view.solve_step.call(window.view, true)'>step</button>
             <input type="range" min="0" max="10" value="1" class="slider" id="solve_rate" />
-            <button id='auto' onclick='window.view.auto_solve_start()'>solve</button>
+            <button id='auto' onclick='window.view.auto_solve_start.call(window.view)'>solve</button>
         </p>
         <div id='view' width='100%' height='100%'>
             <canvas width='100%' height='100%' id='canvas' style='outline: thick solid;'></canvas>

@@ -34,20 +34,13 @@ export function direction_to_orientation(pos: Pos, direction: Direction): [Pos, 
     }
 }
 
-function south(pos: Pos) : Pos {
-    return { x: pos.x, y: pos.y + 1 };
-}
-
-function east(pos: Pos) : Pos {
-    return { x: pos.x + 1, y: pos.y };
-}
-
-function north(pos: Pos) : Pos {
-    return { x: pos.x, y: pos.y - 1 };
-}
-
-function west(pos: Pos) : Pos {
-    return { x: pos.x - 1, y: pos.y };
+export function go(pos: Pos, direction: Direction): Pos {
+    switch(direction) {
+        case Direction.South: return { x: pos.x, y: pos.y + 1 };
+        case Direction.East: return { x: pos.x + 1, y: pos.y };
+        case Direction.North: return { x: pos.x, y: pos.y - 1 };
+        case Direction.West: return { x: pos.x - 1, y: pos.y };
+    }
 }
 
 export type CellId = Id;
@@ -207,14 +200,14 @@ export class GridBuilder {
         this.grid.xmax = Math.max(this.grid.xmax, pos.x);
         this.grid.ymax = Math.max(this.grid.ymax, pos.y);
 
-        this.try_connect_cell_with_link(make_cell_id(pos), link.node.id);
+        this.try_connect_cell_with_link(make_cell_id(start_pos), link.node.id);
+        this.try_connect_cell_with_link(make_cell_id(go(start_pos, direction)), link.node.id);
+
         switch(orientation) {
             case Orientation.East:
-                this.try_connect_cell_with_link(make_cell_id(east(pos)), link.node.id);
                 this.try_connect_hint_with_link(make_hint_id(pos.y, Orientation.East), link.node.id);
                 break;
             case Orientation.South:
-                this.try_connect_cell_with_link(make_cell_id(south(pos)), link.node.id);
                 this.try_connect_hint_with_link(make_hint_id(pos.x, Orientation.South), link.node.id);
                 break;
         }

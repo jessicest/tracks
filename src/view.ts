@@ -22,16 +22,11 @@ import {
     parse_code
 } from './grid_state';
 
-import {
-    RuleReducer,
-    SetStatus
-} from './rule_reducer';
-
-declare global {
-  interface Window {
-    view: View;
-  }
-}
+export type DrawRequest = {
+    id: Id,
+    is_candidate: boolean,
+    is_next_candidate: boolean,
+};
 
 interface Sprite {
     paint(): void;
@@ -69,30 +64,14 @@ ctx.fillRect(20,10,80,50);
 export class View {
     grid!: Grid;
     grid_state!: GridState;
-    rule_reducer!: RuleReducer;
     canvas: any;
     cell_radius: number;
     link_radius: number;
-    paused: boolean;
 
     constructor(canvas: any) {
         this.canvas = canvas;
         this.cell_radius = 1;
         this.link_radius = 1;
-        this.paused = true;
-
-        canvas.addEventListener('click', (event: any) => {
-            this.click(true, this.event_pos(event));
-            event.preventDefault();
-            this.redraw();
-            return false;
-        });
-        canvas.addEventListener('contextmenu', (event: any) => {
-            this.click(false, this.event_pos(event));
-            event.preventDefault();
-            this.redraw();
-            return false;
-        });
 
         this.set_grid_state(make_grid_state(4, 4, [
                 { pos: { x: 1, y: 1 }, direction: Direction.South },
@@ -104,7 +83,7 @@ export class View {
         ));
 
         // resize the canvas to fill browser window dynamically
-        window.addEventListener('resize', window.view.resize_canvas, false);
+        window.addEventListener('resize', this.resize_canvas.bind(this), false);
     }
 
     resize_canvas() {
@@ -120,17 +99,14 @@ export class View {
     set_grid_state(grid_state: GridState) {
         this.grid = grid_state.grid;
         this.grid_state = grid_state;
-        this.rule_reducer = new RuleReducer(grid_state, new Set(), new Set(), new Map(), true);
-        this.rule_reducer.initialize();
         this.resize_canvas();
-        this.redraw();
     }
 
     event_pos(event: MouseEvent): Pos {
         return { x: event.offsetX, y: event.offsetY };
     }
 
-    click(left_click: boolean, pixel_pos: Pos) {
+    pick(pixel_pos: Pos): Id | null {
         const cell_diameter = this.cell_radius * 2;
         const link_diameter = this.link_radius * 2;
         const diameter = cell_diameter + link_diameter;
@@ -155,104 +131,23 @@ export class View {
             id = make_link_id({ x, y }, Direction.South);
         }
 
-        if(id != null) {
-            const status = this.grid_state.statuses.get(id);
-            let new_status;
-            if(left_click && status == Status.Live) {
-                new_status = Status.Unknown;
-            } else if(left_click && status == Status.Unknown) {
-                new_status = Status.Live;
-            } else if(!left_click && status == Status.Dead) {
-                new_status = Status.Unknown;
-            } else if(!left_click && status == Status.Unknown) {
-                new_status = Status.Dead;
-            }
-
-            if(new_status != null) {
-                if(is_link) {
-                    this.execute(new SetStatus(this.rule_reducer, this.grid_state.grid.links.get(id)!.node, new_status, "click"), true);
-                } else {
-                    this.execute(new SetStatus(this.rule_reducer, this.grid_state.grid.cells.get(id)!.node, new_status, "click"), true);
-                }
-            }
-        }
+        return id;
     }
 
-    next_candidate(): Id | null {
-        let next_candidate = this.rule_reducer.next_candidate(this.rule_reducer.candidates);
-        if(next_candidate == null) {
-            next_candidate = this.rule_reducer.next_candidate(this.rule_reducer.guessables);
-        }
-        return next_candidate;
-
-        /* idk why this don't work
-        return
-            this.rule_reducer.next_candidate(this.rule_reducer.candidates) ||
-            this.rule_reducer.next_candidate(this.rule_reducer.guessables) ||
-            null;
-            */
-    }
-
-    execute(action: Action, paint: boolean) {
-        const modified_ids = action.execute().slice();
-        const next_candidate = this.next_candidate();
-
-        if(next_candidate != null) {
-            modified_ids.push(next_candidate);
-        }
-
-        if(paint) {
-            this.redraw_selection(modified_ids);
-        }
-    }
-
-    get_state(id: Id): [Status, boolean, boolean] {
-        const status = this.grid_state.statuses.get(id)!;
-        const is_candidate = this.rule_reducer.candidates.has(id) || (this.rule_reducer.candidates.size == 0 && this.rule_reducer.guessables.has(id));
-        const is_next_candidate = (id == this.next_candidate());
-        return [status, is_candidate, is_next_candidate];
-    }
-
-    redraw() {
+    redraw(requests: Array<DrawRequest>) {
         const context = this.canvas.getContext("2d");
 
-        context.clearRect(0, 0, this.canvas.width, this.canvas.height);
-
-        for(const hint of this.grid.hints.values()) {
-            this.draw_hint(context, hint);
-        }
-
-        for(const cell of this.grid.cells.values()) {
-            this.draw_cell(context, cell);
-        }
-
-        for(const link of this.grid.links.values()) {
-            this.draw_link(context, link);
-        }
-    }
-
-    redraw_selection(ids: Array<Id>) {
-        const context = this.canvas.getContext("2d");
-
-        for(const id of ids) {
-            const hint = this.grid.hints.get(id);
-            if(hint != null) {
-                this.draw_hint(context, hint);
-            }
-
-            const cell = this.grid.cells.get(id);
-            if(cell != null) {
-                this.draw_cell(context, cell);
-            }
-
-            const link = this.grid.links.get(id);
-            if(link != null) {
-                this.draw_link(context, link);
+        for(const request of requests) {
+            switch(request.id.charAt(0)) {
+                case 'l': this.draw_link(context, request); break;
+                case 'c': this.draw_cell(context, request); break;
+                case 'h': this.draw_hint(context, request); break;
             }
         }
     }
 
-    draw_hint(context: CanvasRenderingContext2D, hint: Hint) {
+    draw_hint(context: CanvasRenderingContext2D, request: DrawRequest) {
+        const hint = this.grid.hints.get(request.id)!;
         const cell_diameter = this.cell_radius * 2;
         const link_diameter = this.link_radius * 2;
 
@@ -269,8 +164,6 @@ export class View {
         //  - nigh
         //  - neutral
 
-        const [_status, is_candidate, is_next_candidate] = this.get_state(hint.node.id);
-
         const num_cells = hint.node.cells.length;
         const [live_cells, unknown_cells] = this.grid_state.split_cells(hint.node.cells);
 
@@ -283,9 +176,9 @@ export class View {
         } else if(live_cells.length > hint.value) {
             text_color = '#aa0000'; // violation
         } else {
-            if(is_next_candidate) {
+            if(request.is_next_candidate) {
                 inner_color = '#ffaa22'; // next_candidate
-            } else if(is_candidate) {
+            } else if(request.is_candidate) {
                 inner_color = '#00aa22'; // candidate
             }
 
@@ -330,7 +223,8 @@ export class View {
         context.stroke();
     }
 
-    draw_cell(context: CanvasRenderingContext2D, cell: Cell) {
+    draw_cell(context: CanvasRenderingContext2D, request: DrawRequest) {
+        const cell = this.grid.cells.get(request.id)!;
         const cell_diameter = this.cell_radius * 2;
         const link_diameter = this.link_radius * 2;
 
@@ -340,14 +234,14 @@ export class View {
         const px = x * (cell_diameter + link_diameter);
         const py = y * (cell_diameter + link_diameter);
 
-        const [status, is_candidate, is_next_candidate] = this.get_state(cell.node.id);
+        const status = this.grid_state.statuses.get(request.id)!;
 
         let inner_color, outer_color;
         if(status == Status.Dead) {
             inner_color = "#ddeeff";
-        } else if(is_next_candidate) {
+        } else if(request.is_next_candidate) {
             inner_color = "#ffaa22";
-        } else if(is_candidate) {
+        } else if(request.is_candidate) {
             inner_color = "#00aa22";
         } else {
             inner_color = "#8899dd";
@@ -362,7 +256,8 @@ export class View {
         this.draw_gradient(context, px, py, this.cell_radius, this.cell_radius, inner_color, outer_color);
     }
 
-    draw_link(context: CanvasRenderingContext2D, link: Link) {
+    draw_link(context: CanvasRenderingContext2D, request: DrawRequest) {
+        const link = this.grid.links.get(request.id)!;
         const cell_diameter = this.cell_radius * 2;
         const link_diameter = this.link_radius * 2;
 
@@ -385,15 +280,15 @@ export class View {
             gap = cy / 2;
         }
 
-        const [status, is_candidate, is_next_candidate] = this.get_state(link.node.id);
+        const status = this.grid_state.statuses.get(request.id)!;
 
         let inner_color, outer_color;
 
         if(status == Status.Dead) {
             inner_color = "#ffeedd";
-        } else if(is_next_candidate) {
+        } else if(request.is_next_candidate) {
             inner_color = "#ffaa22";
-        } else if(is_candidate) {
+        } else if(request.is_candidate) {
             inner_color = "#00aa22";
         } else {
             inner_color = "#dd9988";
@@ -444,68 +339,4 @@ export class View {
             default: throw "hm.";
         }
     }
-
-    solve_step(paint: boolean): boolean {
-        const action = this.rule_reducer.process();
-        if(action) {
-            this.execute(action, paint);
-            return true;
-        } else {
-            return false;
-        }
-    }
-
-    auto_solve_step() {
-        let next_frame_time = 0;
-
-        function step(timestamp: DOMHighResTimeStamp) {
-            if(window.view.paused) {
-                return;
-            }
-            if(timestamp >= next_frame_time) {
-                const solve_rate = parseInt((document.getElementById('solve_rate') as HTMLInputElement).value);
-                next_frame_time = timestamp + (1000 / 60);
-
-                for(let i = 0; i < solve_rate; ++i) {
-                    if(performance.now() >= next_frame_time) {
-                        break;
-                    }
-                    if(!window.view.solve_step(true)) {
-                        window.view.auto_solve_stop();
-                        next_frame_time = 0;
-                        return false;
-                    }
-                }
-            }
-            window.requestAnimationFrame(step);
-        }
-
-        window.requestAnimationFrame(step);
-    }
-
-    auto_solve_start() {
-        window.view.paused = false;
-        const button = document.getElementById('auto') as HTMLButtonElement;
-        button.innerHTML = 'stop';
-        button.onclick = window.view.auto_solve_stop;
-
-        window.view.auto_solve_step();
-    }
-
-    auto_solve_stop() {
-        window.view.paused = true;
-        const button = document.getElementById('auto') as HTMLButtonElement;
-        button.innerHTML = 'start';
-        button.onclick = window.view.auto_solve_start;
-        window.view.redraw();
-    }
-
-    parse() {
-        window.view.auto_solve_stop();
-        const code = (document.getElementById('code') as HTMLInputElement).value;
-        this.set_grid_state(parse_code(code));
-    }
 }
-
-const canvas = document.getElementById('canvas');
-window.view = new View(canvas);
