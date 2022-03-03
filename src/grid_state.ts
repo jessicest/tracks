@@ -160,43 +160,44 @@ export class GridState {
     }
 
     encode(): string {
-        return `${this.cx}x${this.cy}:${encode_links(this)}${encode_hints(this)}`;
+        return `${this.grid.xmax}x${this.grid.ymax}:${encode_links(this)}${encode_hints(this)}`;
     }
 }
 
-function encode_links(grid_state: GridState) : string {
-    const zx = cx + 1;
-    const zy = cy + 1;
+function encode_links(grid_state: GridState): string {
+    const zx = grid_state.grid.xmax + 1;
+    const zy = grid_state.grid.ymax + 1;
 
     let skip = 0;
+    let code = '';
 
     for(const y of range(1, zy)) {
         for(const x of range(1, zx)) {
             let value = 0;
 
             const north_id = make_link_id({ x, y: y - 1 }, Direction.South);
-            const north = grid_state.statuses.get(north_id) == State.Live;
+            const north = grid_state.statuses.get(north_id) == Status.Live;
 
             if(north) {
                 value += 2;
             }
 
             const east_id = make_link_id({ x, y }, Direction.East);
-            const east = grid_state.statuses.get(east_id) == State.Live;
+            const east = grid_state.statuses.get(east_id) == Status.Live;
 
             if(east) {
                 value += 1;
             }
 
             const south_id = make_link_id({ x, y }, Direction.South);
-            const south = grid_state.statuses.get(south_id) == State.Live;
+            const south = grid_state.statuses.get(south_id) == Status.Live;
 
             if(south) {
                 value += 8;
             }
 
             const west_id = make_link_id({ x: x - 1, y }, Direction.East);
-            const west = grid_state.statuses.get(west_id) == State.Live;
+            const west = grid_state.statuses.get(west_id) == Status.Live;
 
             if(west) {
                 value += 4;
@@ -228,9 +229,9 @@ function encode_links(grid_state: GridState) : string {
 }
 
 function encode_hints(grid_state: GridState) : string {
-    let code = new string();
+    let code = '';
 
-    for(const x of range(1, grid_state.cx + 2)) {
+    for(const x of range(1, grid_state.grid.xmax + 2)) {
         if(false) {
             code += "S";
         }
@@ -238,7 +239,7 @@ function encode_hints(grid_state: GridState) : string {
         code += String.fromCharCode(grid_state.grid.hints.get(make_hint_id(x, Direction.South))!.value + 48);
     }
 
-    for(const y of range(1, grid_state.cy + 2)) {
+    for(const y of range(1, grid_state.grid.ymax + 2)) {
         if(false) {
             code += "S";
         }

@@ -1,6 +1,6 @@
 
 // generates a range of numbers from start (inclusive) to end (exclusive)
-function* range(start: number, end?: number, step: number = 1) {
+export function* range(start: number, end?: number, step: number = 1) {
   if( end === undefined ) [start, end] = [0, start];
   for( let n = start; n < end; n += step ) yield n;
 }

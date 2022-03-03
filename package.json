@@ -41,11 +41,14 @@
   },
   "homepage": "https://github.com/jessicest/tracks#readme",
   "jest": {
+    "modulePaths": [
+        "<rootDir>/src/"
+    ],
     "preset": "ts-jest",
     "testMatch": [ "**/test/**/*.[jt]s?(x)" ],
     "globals": {
       "ts-jest": {
-          "useESM": false
+          "useESM": true
       }
     }
   }

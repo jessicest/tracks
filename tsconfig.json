@@ -1,5 +1,6 @@
 {
     "compilerOptions": {
+        "esModuleInterop": true,
         "experimentalDecorators": true,
         "forceConsistentCasingInFileNames": true,
         "lib": [ "ES2019", "DOM" ],
@@ -8,6 +9,7 @@
         "outDir": "lib",
         "removeComments": true,
         "rootDir": "src",
+        "sourceMap": true,
         "strict": true,
         "target": "ES2019"
     },
